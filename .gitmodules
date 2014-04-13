@@ -1,0 +1,3 @@
+[submodule "libqstruct"]
+	path = libqstruct
+	url = https://github.com/hoytech/libqstruct
