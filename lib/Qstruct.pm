@@ -138,17 +138,17 @@ Qstruct is heavily inspired by L<Cap'n Proto|http://kentonv.github.io/capnproto/
 
 The goal of Qstruct is to provide as close as possible performance to C C<struct>s -- even including pointers inside structs -- while also being portable, extensible, and safe. The way it does this is by making the "in-memory" representation the same as the "wire" format. Because it's redundant to distinguish between these formats, this documentation will only refer to I<the> Qstruct format.
 
-C<Portable>: Although all integers and floating point numbers are stored in little endian, and in some cases can be at unaligned offsets, Qstructs can be used on any CPU, even if it is big endian or has strict alignment requirements.
+C<Portable>: Although all integers and floating point numbers are stored in little endian and can start at unaligned offsets (if you load from them), Qstructs can be used on any CPU, even if it is big endian or has strict alignment requirements.
 
-C<Extensible>: New fields can be added to the structure as needed without invalidating already created messages. The fields can be jumbled around in any order as long as you don't change the types or C<@> ids of existing fields.
+C<Extensible>: New fields can be added to the structure as needed without invalidating already created messages. The fields can be renamed or jumbled around in any order as long as you don't change the types or C<@> ids of existing fields.
 
-C<Safe>: Accessing data from untrusted sources should never cause the program to read or write out of bounds causing a segfault or worse. The format is quite simple so that verifying and testing this should be straightforward.
+C<Safe>: Accessing data from untrusted sources should never cause the program to read or write out of bounds causing a segfault or worse. The format is quite simple so that verifying and testing should be straightforward. There will be a canonicalisation protocol so Qstructs should be cache-friendly and suitable for digitally signed messages.
 
 
 
 =head1 SCHEMA LANGUAGE
 
-The schema language is modeled very closely after Cap'n Proto's although much simpler.
+The schema language is modeled very closely after Cap'n Proto's although it is much simpler.
 
 A schema is a series of qstructs. Each qstruct contains 0 or more fields. Each field is 3 items: The name, the C<@> id, and the type specifier.
 
@@ -177,7 +177,7 @@ For example, here is a schema:
 
 =item  int
 
-This is a family of types accounting for size and signedness: C<int8>, C<int16>, C<int32>, C<int64>, C<uint8>, C<uint16>, C<uint32>, C<uint64>.
+A family of types the differ in size and signedness: C<int8>, C<int16>, C<int32>, C<int64>, C<uint8>, C<uint16>, C<uint32>, C<uint64>.
 
 Always stored in little-endian byte order (even in-memory on big-endian machines).
 
@@ -202,7 +202,9 @@ A pointer and a size referring to a later part of the message. They consume at l
 
 Strings and blobs are both considered arbitrary sequences of bytes and neither type enforces any character encoding. I don't believe it is necessary for (or even the place of) a serialisation format to dictate encoding policy. Of course you are free to enforce/assume a common encoding for all of I<your> messages.
 
-Qstruct strings can take advantage of a space optimisation called B<tagged-sizes>. This is essentially the only "clever" packing trick in the Qstruct format. Because the alignment of strings doesn't matter and because 64 bit sizes give us heaps of room to work with, in qstructs the sizes are encoded specially. If the lower nibble of the first byte is 0 then the whole 64-bit size is bit-shifted down 8 bits. This is then taken as the size of whatever the pointer is pointing to. If the lower nibble of the first byte was instead non-zero, this is taken to be an inline length and the pointer is ignored: Instead the string is located at the following byte. Note that only strings of 15 or fewer bytes can be size-tagged. Blobs can never use tagged-sizes because of their alignment requirements.
+Qstruct strings can take advantage of a space optimisation called B<tagged-sizes>. This is essentially the only "clever" packing trick in the Qstruct format. Because the alignment of strings doesn't matter and because 64 bit sizes give us heaps of room to work with, string sizes are encoded specially. If the lower nibble of the first byte is zero then the whole 64-bit size is bit-shifted down 8 bits. This is then taken to be the size of whatever the pointer is pointing to. If the lower nibble of the first byte was instead non-zero, this is taken to be an inline length and the pointer is ignored: Instead the string is located at the following byte. Note that only strings of 15 or fewer bytes can be size-tagged. Blobs can never use tagged-sizes because of their alignment requirements.
+
+Default: '' (Empty string)
 
 
 =back
@@ -230,6 +232,8 @@ All Qstructs start with a 16 byte C<header>. The first 8 bytes are reserved and 
 
     00000000  00 00 00 00 00 00 00 00  15 2f 00 00 00 00 00 00
               |--reserved (all 0s)--|  |body size (LE uint64)|
+
+The reserved bytes are there for future extensions such as schema versioning.
 
 
 
@@ -287,15 +291,15 @@ This module uses the "slow" but portable accessors described in L<libqstruct|htt
 
 =head1 EXTENSIBLE
 
-As long as you don't change existing fields' types or C<@> ids, you can always add new fields to a qstruct and you'll any messages that were created with the old schema will still be loadable. Accessing the new fields of these old messages will return the particular types' default values.
+As long as you don't change existing fields' types or C<@> ids, you can always add new fields to a qstruct and any messages that were created with the old schema will still be loadable. Accessing the new fields of these old messages will return the particular types' default values.
 
-You can change the name of any field  as long as you don't change the C<@> id.
+You can change the name of any field as long as you don't change the C<@> id.
 
 The order of the fields in a struct are irrelevant -- only the types and C<@> ids influence the packing order. Similarly, comments can be added/removed anywhere.
 
 You can change the signedness of integer types as long as you are OK with effectively re-casting the data (ie negative ints become large positive ints/large positive ints become negative ints).
 
-You can change a blob to a string (if you are willing to break the canonicalisation) but you can't change a string to a blob due to alignment.
+You can change a blob to a string (if you are willing to change the canonicalisation) but you can't change a string to a blob due to alignment.
 
 
 =head1 SAFETY
