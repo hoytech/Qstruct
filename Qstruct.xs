@@ -263,7 +263,7 @@ set_string(self, byte_offset, value_sv)
         value_size = SvCUR(value_sv);
         value = SvPV(value_sv, value_size);
 
-        if (qstruct_builder_set_pointer(self, byte_offset, value, value_size, 1)) croak("out of memory");
+        if (qstruct_builder_set_pointer(self, byte_offset, value, value_size, 1, NULL)) croak("out of memory");
 
 
 

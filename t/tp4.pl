@@ -3,21 +3,19 @@ use strict; use Data::Dumper;
     use Qstruct;
 
     Qstruct::load_schema(q{
-/* AKSD */
       qstruct MyPkg::User {
-        id @0 uint64;
-        is_admin @1 bool;
-        name @2 string;
-        is_locked @3 bool;
-        email @4 string;
+      id @0 uint64;
+      is_admin @1 bool;
+      name @2 string;
+      is_locked @3 bool;
       }
     });
 
     my $user_builder = MyPkg::User->build;
     $user_builder->set_id(100);
-    $user_builder->set_name("hello world!"x2);
+    $user_builder->set_name('too long for tagged size');
     $user_builder->set_is_admin(1);
-    $user_builder->set_email('jimothy-the-great@lol.com');
+    #$user_builder->set_email('jimothy-the-great@lol.com');
     $user_builder->set_is_locked(1);
     my $encoded_data = $user_builder->finish;
 
