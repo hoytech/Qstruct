@@ -1,4 +1,0 @@
-Qstruct
-=======
-
-Quick structure serialisation

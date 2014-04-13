@@ -1,0 +1,11 @@
+README
+/Makefile
+/Makefile.old
+MYMETA.*
+blib/
+pm_to_blib
+MANIFEST.bak
+Qstruct-*.tar.gz
+Qstruct.c
+Qstruct.bs
+*.o
