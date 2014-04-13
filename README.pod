@@ -35,14 +35,16 @@ Qstruct - Quick structure serialisation
 
     ## Zero-copy access of strings/blobs
     $user->get_name(my $name);
+
+foreach my $id (@{ $user->get_account_ids }) { print $id }
     print "User name: $name\n";
 
 
 =head1 DESCRIPTION
 
-B<Qstruct> is a data serialisation format. Unlike L<JSON|http://json.org>, L<Storable>, L<Sereal>, etc, Qstruct requires a schema. This makes it more like L<XML>, L<ASN.1|http://www.itu.int/en/ITU-T/asn1/Pages/introduction.aspx>, or L<Protocol Buffers|https://developers.google.com/protocol-buffers/>.
+B<Qstruct> is a data serialisation format. Unlike L<JSON|http://json.org>, L<Storable>, L<Sereal>, etc, Qstruct requires a schema. This makes it more like L<XML>, L<ASN.1|http://www.itu.int/en/ITU-T/asn1/Pages/introduction.aspx>, and L<Protocol Buffers|https://developers.google.com/protocol-buffers/>.
 
-Qstruct is heavily inspired by L<Cap'n Proto|http://kentonv.github.io/capnproto/> and I am indebted to Kenton Varda for thinking through a lot of the details of how this type of serialisation should work. Qstructs originally came about as an attempt to implement Cap'n Proto in perl.
+Qstruct is heavily inspired by L<Cap'n Proto|http://kentonv.github.io/capnproto/> and I am indebted to Kenton Varda for thinking through and publishing a lot of the details of how this type of serialisation needs to work. Qstructs originally came about as an attempt to implement Cap'n Proto in perl.
 
 
 =head1 GOALS
@@ -113,6 +115,8 @@ A pointer and a size referring to a later part of the message. They consume at l
 
 Strings and blobs are both considered arbitrary sequences of bytes and neither type enforces any character encoding. I don't believe it is necessary for (or even the place of) a serialisation format to dictate encoding policy. Of course you are free to enforce/assume a common encoding for all of I<your> messages.
 
+Neither strings nor blobs are guaranteed to be NUL terminated so you must use their associated lengths.
+
 Qstruct strings can take advantage of a space optimisation called B<tagged-sizes>. This is essentially the only "clever" packing trick in the Qstruct format. Because the alignment of strings doesn't matter and because 64 bit sizes give us heaps of room to work with, string sizes are encoded specially. If the lower nibble of the first byte is zero then the whole 64-bit size is bit-shifted down 8 bits. This is then taken to be the size of whatever the pointer is pointing to. If the lower nibble of the first byte was instead non-zero, this is taken to be an inline length and the pointer is ignored: Instead the string is located at the following byte. Note that only strings of 15 or fewer bytes can be size-tagged. Blobs can never use tagged-sizes because of their alignment requirements.
 
 Default: '' (Empty string)
@@ -128,18 +132,18 @@ Default: '' (Empty string)
 
 =head2 MESSAGE
 
-A message is a block of data representing a Qstruct. It is either in the process of being built or is ready-only and ready to be accessed.
+A message is a block of data representing a Qstruct. It is either in the process of being built or is read-only and ready to be accessed.
 
 The message data should be considered a binary blob and it may contain NUL bytes so its length must be tracked separately (ie not a terminating NUL).
 
-Messages can in theory be any size representable in an unsigned 64 bit number. However, on 32-bit machines some messages are too large to access and attempting to build or load these messages will throw exceptions.
+Messages can in theory be any size representable by an unsigned 64 bit number. However, on 32-bit machines some messages are too large to access and attempting to build or load these messages will throw exceptions.
 
-Messages are not self-delimiting so when transmitting them they need to be framed in some fashion. For example, when sending across a socket you might choose to send an 8-byte little-endian integer before the message data to indicate the size of the message that follows.
+Messages are not self-delimiting so when transmitting them they need to be framed in some fashion. For example, when sending across a socket you might choose to send an 8-byte little-endian integer before the message data to indicate the size of the message that follows. When you apply a framing system be aware that it may impact the alignment of the data when you load it.
 
 
 =head2 HEADER
 
-All Qstructs start with a 16 byte C<header>. The first 8 bytes are reserved and should always be 0s. The second 8 bytes is a little endian unsigned 64-bit integer that indicates how large the following C<body> is (which may be shorter than the total message size).
+All Qstructs start with a 16 byte C<header>. The first 8 bytes are reserved and should always be 0s. The second 8 bytes are a little endian unsigned 64-bit integer that indicate how large the following C<body> is (which may be shorter than the total message size).
 
     00000000  00 00 00 00 00 00 00 00  15 2f 00 00 00 00 00 00
               |--reserved (all 0s)--|  |body size (LE uint64)|
@@ -182,7 +186,7 @@ This would be the resulting format:
               |-> name (@2) tag byte indicating length of inline string
 
 
-When computing the body offsets, the Qstruct compiler will always try to find the first location in the message that data type will fit into while still respecting the alignment preference of the data types. In this fashion it works like a first-fit memory allocator. If no gaps can be found, it will append the type onto the end of the message (possibly prepending some free space to respect alignment).
+When computing the body offsets, the Qstruct compiler will always try to find the first location in the message that a data type will fit into while still respecting the alignment preference of the data types. In this fashion it works like a first-fit memory allocator. If no gaps can be found, it will allocate the data type at the end of the message (possibly after adding some free space to respect alignment).
 
 
 
@@ -225,14 +229,18 @@ If you use the wrong schema or the message has been corrupted by a malicious att
 
 When loading or accessing a message there should be no way to make this module consume any more memory than you explicitly copy out of it. In any one operation this will be at most the size of the message. With zero-copy accessors none of the message data is copied at all.
 
-Unlike Cap'n Proto, the simplistic nature of the Qstruct format does not explicitly provide list-like/tree-like/nested data-structures so there is nothing to configure in the Qstruct implementation to prevent stack overflows, cycles, or recursion. Note that you can manually traverse nested Qstructs inside blobs (or arrays of blobs).
+Unlike Cap'n Proto, the simplistic nature of the Qstruct format does not explicitly provide list-like/tree-like/nested data-structures so there is nothing to configure in the Qstruct implementation to prevent stack overflows, cycles, or recursion.
+
+Note that you can treat blobs as nested Qstructs and manually traverse them (and/or arrays of them). If you do that in some data-directed (as opposed to code-directed) fashion you may have similar issues. I suggest sticking to purely code-directed traversals if possible.
 
 
 =head1 CANONICALISATION
 
 This is not implemented yet but, subject to some constraints I will document here, messages can be efficiently converted into a canonical form. The C<copy> method will return a canonicalized version of the message.
 
-There is a lot to think about for this -- don't rely on it for security until this is all fleshed out: All pointers must point forward when traversed in a particular order. Null out all free and unallocated space. Make sure tagged-size optimisation is always applied when possible. Null out high bytes and high nibble in tagged-sizes. Ensure no trailing nul bytes on body (these are always assumed to be 0 anyway). Ensure no extra padding on end of message. Null out reserved area. Ensure only 2 representations for NaN (qNaN/sNan).
+There is a lot to think about for this -- don't rely on it for security until this is all fleshed out: All pointers must point forward when traversed in a particular order. Null out all free and unallocated space. Make sure tagged-size optimisation is always applied when possible. Null out high bytes and high nibble in tagged-sizes. Ensure body is the right size for current schema version. Ensure no extra padding on end of message. Null out reserved area. Ensure only 2 representations for NaN (qNaN/sNan).
+
+The biggest complication is canonicalisation across schema changes. There may be some schema versioning required.
 
 
 

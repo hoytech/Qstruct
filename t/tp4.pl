@@ -9,13 +9,15 @@ use strict; use Data::Dumper;
         is_admin @1 bool;
         name @2 string;
         is_locked @3 bool;
+        email @4 string;
       }
     });
 
     my $user_builder = MyPkg::User->build;
     $user_builder->set_id(100);
-    $user_builder->set_name("hello world!");
+    $user_builder->set_name("hello world!"x2);
     $user_builder->set_is_admin(1);
+    $user_builder->set_email('jimothy-the-great@lol.com');
     $user_builder->set_is_locked(1);
     my $encoded_data = $user_builder->finish;
 

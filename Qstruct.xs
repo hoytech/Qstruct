@@ -226,10 +226,11 @@ MODULE = Qstruct         PACKAGE = Qstruct::Builder
 PROTOTYPES: ENABLE
 
 Qstruct_Builder
-new(package)
+new(package, body_size)
         char *package
+        size_t body_size
     CODE:
-        RETVAL = qstruct_builder_new();
+        RETVAL = qstruct_builder_new(body_size);
     OUTPUT:
         RETVAL
 
@@ -262,7 +263,7 @@ set_string(self, byte_offset, value_sv)
         value_size = SvCUR(value_sv);
         value = SvPV(value_sv, value_size);
 
-        if (qstruct_builder_set_string(self, byte_offset, value, value_size)) croak("out of memory");
+        if (qstruct_builder_set_pointer(self, byte_offset, value, value_size, 1)) croak("out of memory");
 
 
 
