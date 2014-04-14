@@ -18,7 +18,9 @@ use strict; use Data::Dumper;
 #__END__
 
     my $user = MyPkg::User->load($encoded_data);
-    foreach my $z (@{ $user->get_accounts }) {
+my $accts = $user->get_accounts;
+#push @$accts, "LOL";
+    foreach my $z (@$accts) {
       print "$z\n";
     }
 
