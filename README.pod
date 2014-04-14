@@ -45,22 +45,22 @@ Qstruct - Quick structure serialisation
 
 =head1 DESCRIPTION
 
-B<Qstruct> is a binary data serialisation format. Unlike L<Storable>, L<Data::MessagePack>, L<Sereal>, L<CBOR::XS> etc, Qstruct requires a schema. This makes it more like the various encodings of L<ASN.1|http://www.itu.int/en/ITU-T/asn1/Pages/introduction.aspx> or L<Protocol Buffers|https://developers.google.com/protocol-buffers/>.
+B<Qstruct> is a binary data serialisation format. Unlike L<Storable>, L<Data::MessagePack>, L<Sereal>, L<CBOR::XS> etc, Qstruct requires a schema. This makes it more like L<ASN.1|http://www.itu.int/en/ITU-T/asn1/Pages/introduction.aspx>, L<Thrift::XS>, or L<Google::ProtocolBuffers>.
 
-In addition to the above, Qstruct is heavily inspired by L<Cap'n Proto|http://kentonv.github.io/capnproto/> and I am indebted to Kenton Varda for thinking through and publishing many of the details of how this type of serialisation should work. Qstructs originally came about as an attempt to implement Cap'n Proto in perl.
+In addition to the above, Qstruct is heavily inspired by L<Cap'n Proto|http://kentonv.github.io/capnproto/>. I am indebted to Kenton Varda for thinking through and publishing many of the details of how this type of serialisation should work. Qstructs originally came about as an attempt to implement Cap'n Proto in perl.
 
 
 =head1 GOALS
 
 The goal of Qstruct is to provide as close as possible performance to C C<struct>s -- even ones containing pointers -- while also being portable, extensible, and safe. The way it does this is by making the "in-memory" representation the same as the "wire" representation. Because it's redundant to distinguish between these representations, this documentation will only refer to I<the> B<Qstruct format>.
 
-C<Portable>: All integers and floating point numbers are stored in little-endian byte order and can start at unaligned offsets (if you load a message from an unaligned offset). Despite these restrictions, Qstructs can be used on any CPU, even ones that are big-endian or have strict alignment requirements.
+C<Portable>: All integers and floating point numbers are stored in little-endian byte order and can start at unaligned offsets (if you load messages from unaligned offsets). Despite these restrictions, Qstructs can be used on any CPU, even ones that are big-endian or have strict alignment requirements.
 
 C<Extensible>: New fields can be added to the structure as needed without invalidating already created messages. The fields can be renamed or moved within the qstruct schema as long as you don't change the types or C<@> ids of existing fields.
 
-C<Safe>: Accessing data from untrusted sources should never cause the program to read or write out of bounds which would cause a segfault or worse. The Qstruct format is designed to be quite simple in order to help with verifying and testing this. Although not implemented yet, there is a canonicalisation specification in development so Qstructs will be cache-friendly and suitable for digitally signing.
+C<Safe>: Accessing data from untrusted sources should never cause the program to read or write out of bounds causing a segfault or worse. The Qstruct format is designed to be quite simple in order to help with verifying and testing this. Although not implemented yet, there is a canonicalisation specification in development so Qstructs will be cache-friendly and suitable for digitally signing.
 
-C<Efficient>: Because there is no difference between "in-memory" versus "wire" formats, there is no encoding/decoding needed. Even for extremely large messages, loading is instantaneous (it just does some basic sanity checking of the message size and header information). If you only access a few fields of a message, you don't pay any deserialisation costs for the fields you don't access: Yyou only pay for what you use. Furthermore, all operations are inherently zero-copy. In other words, the values you extract will always be pointers into the message data. The only copying that occurs is what you copy manually (see below).
+C<Efficient>: Because there is no difference between "in-memory" versus "wire" formats, there is no encoding/decoding needed. Even for extremely large messages, loading is instantaneous (it just does some basic sanity checking of the message size and header information). If you only access a few fields of a message you don't pay any deserialisation costs for the fields you didn't access: You only pay for what you use. Furthermore, all operations are inherently zero-copy. In other words, the values you extract will always be pointers into the message data. The only copying that occurs is what you copy manually (see below).
 
 =head1 SCHEMA LANGUAGE
 
