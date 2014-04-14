@@ -3,6 +3,8 @@ package Qstruct;
 use strict;
 use Carp;
 
+use Qstruct::Array;
+
 our $VERSION = '0.100';
 
 require XSLoader;
@@ -44,7 +46,11 @@ sub load_schema {
       my $getter_name = "$def->{name}::Loader::get_$item->{name}";
 
       my $type = $item->{type};
-      my $base_type = $item->{type} & 0xFFFF;
+      my $base_type = $type & 0xFFFF;
+      my $fixed_array_size = $item->{fixed_array_size};
+      my $is_unsigned = $type & (1<<16);
+      my $is_array_fix = $type & (1<<17);
+      my $is_array_dyn = $type & (1<<18);
 
       my $byte_offset = $item->{byte_offset};
       my $bit_offset = $item->{bit_offset};
@@ -67,13 +73,38 @@ sub load_schema {
           Qstruct::Runtime::get_bool($_[0]->{e}, $byte_offset, $bit_offset);
         });
       } elsif ($base_type == 9) { # int64
-        _install_closure($setter_name, sub {
-          $_[0]->{b}->set_uint64($byte_offset, $_[1]);
-        });
+        if ($is_array_dyn) {
+          _install_closure($setter_name, sub {
+            my $elems = scalar @{$_[1]};
+            my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * 8, 8);
+            for (my $i=0; $i<$elems; $i++) {
+              $_[0]->{b}->set_uint64($array_offset + ($i * 8), $_[1]->[$i]);
+            }
+          });
 
-        _install_closure($getter_name, sub {
-          Qstruct::Runtime::get_uint64($_[0]->{e}, $byte_offset);
-        });
+          _install_closure($getter_name, sub {
+            my $buf = $_[0]->{e};
+            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($_[0]->{e}, $byte_offset, 8) };
+            my @arr;
+            tie @arr, 'Qstruct::Array',
+                      {
+                        n => $elems,
+                        a => sub {
+                               return undef if $_[0] >= $elems;
+                               return Qstruct::Runtime::get_uint64($buf, $array_base + ($_[0] * 8), 1);
+                             },
+                      };
+            return \@arr;
+          });
+        } else {
+          _install_closure($setter_name, sub {
+            $_[0]->{b}->set_uint64($byte_offset, $_[1]);
+          });
+
+          _install_closure($getter_name, sub {
+            Qstruct::Runtime::get_uint64($_[0]->{e}, $byte_offset);
+          });
+        }
       } else {
         die "unknown type: $base_type/$type";
       }
@@ -116,6 +147,7 @@ Qstruct - Quick structure serialisation
     $user_builder->set_id(100);
     $user_builder->set_name("jimmy");
     $user_builder->set_is_admin(1);
+    $user_builder->set_account_ids([1234,5678]);
     my $encoded_data = $user_builder->finish;
 
     ## Load a user message and access some fields
@@ -127,8 +159,10 @@ Qstruct - Quick structure serialisation
     ## Zero-copy access of strings/blobs
     $user->get_name(my $name);
 
-    #foreach my $id (@{ $user->get_account_ids }) { print $id }
-    #print "User name: $name\n";
+    ## Arrays
+    foreach my $id (@{ $user->get_account_ids }) {
+      print "$id\n";
+    }
 
 
 =head1 DESCRIPTION

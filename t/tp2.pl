@@ -3,7 +3,7 @@ use strict;
 use Qstruct;
 use Data::Dumper;
 
-my $b = Qstruct::Builder->new();
+my $b = Qstruct::Builder->new(80);
 $b->set_uint64(32, 0x123456789abcdef0);
 $b->set_bool(16, 4, 1);
 $b->set_string(64, "hello!");

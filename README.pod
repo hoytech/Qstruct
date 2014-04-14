@@ -25,6 +25,7 @@ Qstruct - Quick structure serialisation
     $user_builder->set_id(100);
     $user_builder->set_name("jimmy");
     $user_builder->set_is_admin(1);
+    $user_builder->set_account_ids([1234,5678]);
     my $encoded_data = $user_builder->finish;
 
     ## Load a user message and access some fields
@@ -36,8 +37,10 @@ Qstruct - Quick structure serialisation
     ## Zero-copy access of strings/blobs
     $user->get_name(my $name);
 
-    #foreach my $id (@{ $user->get_account_ids }) { print $id }
-    #print "User name: $name\n";
+    ## Arrays
+    foreach my $id (@{ $user->get_account_ids }) {
+      print "$id\n";
+    }
 
 
 =head1 DESCRIPTION

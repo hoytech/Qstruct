@@ -4,25 +4,25 @@ use strict; use Data::Dumper;
 
     Qstruct::load_schema(q{
       qstruct MyPkg::User {
-      id @0 uint64;
-      is_admin @1 bool;
-      name @2 string;
-      is_locked @3 bool;
+        id @0 uint64;
+        accounts @1 uint64[];
       }
     });
 
     my $user_builder = MyPkg::User->build;
     $user_builder->set_id(100);
-    $user_builder->set_name('too long for tagged size');
-    $user_builder->set_is_admin(1);
-    #$user_builder->set_email('jimothy-the-great@lol.com');
-    $user_builder->set_is_locked(1);
+    $user_builder->set_accounts([1,255]);
     my $encoded_data = $user_builder->finish;
 
-    print $encoded_data;
+#    print $encoded_data;
+#__END__
+
+    my $user = MyPkg::User->load($encoded_data);
+    foreach my $z (@{ $user->get_accounts }) {
+      print "$z\n";
+    }
 
 __END__
-    my $user = MyPkg::User->load($encoded_data);
     print "User id: " . $user->get_id . "\n";
     print "User name: " . $user->get_name . "\n";
     print "*** ADMIN ***\n" if $user->get_is_admin;

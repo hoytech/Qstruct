@@ -142,9 +142,10 @@ sanity_check(buf_sv)
         RETVAL
 
 uint64_t
-get_uint64(buf_sv, byte_offset)
+get_uint64(buf_sv, byte_offset, allow_heap = 0)
         SV *buf_sv
         size_t byte_offset
+        int allow_heap
     CODE:
         char *buf;
         size_t buf_size;
@@ -154,7 +155,7 @@ get_uint64(buf_sv, byte_offset)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_get_uint64(buf, buf_size, byte_offset, &output);
+        ret = qstruct_get_uint64(buf, buf_size, byte_offset, &output, allow_heap);
 
         if (ret) croak("malformed qstruct");
 
@@ -220,6 +221,36 @@ get_string(buf_sv, byte_offset, output_sv)
         SvREADONLY_on(buf_sv);
 
 
+AV *
+get_dyn_array(buf_sv, byte_offset, elem_size)
+        SV *buf_sv
+        size_t byte_offset
+        size_t elem_size
+    CODE:
+        char *buf, *array_base;
+        size_t buf_size, array_size;
+        int ret;
+        AV *rv;
+
+        buf_size = SvCUR(buf_sv);
+        buf = SvPV(buf_sv, buf_size);
+
+        ret = qstruct_get_pointer(buf, buf_size, byte_offset, &array_base, &array_size, elem_size);
+
+        if (ret == -2) croak("array too large for 32 bit machine");
+        if (ret) croak("malformed qstruct");
+
+        rv = newAV();
+        sv_2mortal((SV*)rv);
+
+        av_push(rv, newSViv(array_base - buf));
+        av_push(rv, newSViv(array_size / elem_size));
+
+        RETVAL = rv;
+    OUTPUT:
+        RETVAL
+
+
 
 
 MODULE = Qstruct         PACKAGE = Qstruct::Builder
@@ -264,6 +295,21 @@ set_string(self, byte_offset, value_sv)
         value = SvPV(value_sv, value_size);
 
         if (qstruct_builder_set_pointer(self, byte_offset, value, value_size, 1, NULL)) croak("out of memory");
+
+size_t
+set_array(self, byte_offset, size, alignment)
+        Qstruct_Builder self
+        size_t byte_offset
+        size_t size
+        int alignment
+    CODE:
+        size_t data_start = 0;
+
+        if (qstruct_builder_set_pointer(self, byte_offset, NULL, size, alignment, &data_start)) croak("out of memory");
+
+        RETVAL = data_start;
+    OUTPUT:
+        RETVAL
 
 
 
