@@ -2,21 +2,13 @@
 #include "perl.h"
 #include "XSUB.h"
 
-
-/* define int64_t and uint64_t when using MinGW compiler */
-#ifdef __MINGW32__
 #include <stdint.h>
-#endif
-
-/* define int64_t and uint64_t when using MS compiler */
-#ifdef _MSC_VER
 #include <stdlib.h>
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-#endif
+
 
 #define MATH_INT64_NATIVE_IF_AVAILABLE
 #include "perl_math_int64.h"
+
 
 #include "qstruct_utils.h"
 #include "qstruct_compiler.h"
