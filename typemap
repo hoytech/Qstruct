@@ -3,6 +3,12 @@ Qstruct_Definitions      T_PTROBJ_SPECIAL
 Qstruct_Builder      T_PTROBJ_SPECIAL
 int64_t         T_INT64
 uint64_t        T_UINT64
+int32_t         T_INT
+uint32_t        T_U_INT
+int16_t         T_SHORT
+uint16_t        T_U_SHORT
+int8_t         T_SHORT
+uint8_t        T_U_SHORT
 
 
 ## cribbed from perlxstypemap and Math::Int64::C_API::Sample

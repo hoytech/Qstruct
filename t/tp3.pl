@@ -11,6 +11,10 @@ use strict; use Data::Dumper;
         salary @4 double;
         temperatures @5 double[];
         lols @6 uint64[4];
+        i32 @7 int32[];
+        u16 @8 uint16[3];
+        s8 @9 int8[];
+        omg @10 float[6];
       }
     });
 
@@ -22,6 +26,10 @@ use strict; use Data::Dumper;
     $user_builder->set_salary(128332.29);
     $user_builder->set_temperatures([1.55, 934.334, 123456.9876, 7777777, -923343]);
     $user_builder->set_lols([1,2,3,45]);
+    $user_builder->set_i32([-1,1,9123]);
+    $user_builder->set_u16([0,1,-1]);
+    $user_builder->set_s8([0,1,-1,255,128,127]);
+    $user_builder->set_omg([3.1415, 945654, 4954.34, 123456.78, 234, 0.000023]);
     my $encoded_data = $user_builder->finish;
 
     my $user = MyPkg::User->load($encoded_data);
@@ -42,4 +50,20 @@ use strict; use Data::Dumper;
 
     for my $lol (@{ $user->get_lols }) {
       print "  LOL: $lol\n";
+    }
+
+    for my $lol (@{ $user->get_i32 }) {
+      print "  I32: $lol\n";
+    }
+
+    for my $lol (@{ $user->get_u16 }) {
+      print "  U16: $lol\n";
+    }
+
+    for my $lol (@{ $user->get_s8 }) {
+      print "  S8: $lol\n";
+    }
+
+    for my $lol (@{ $user->get_omg }) {
+      print "  OMG: $lol\n";
     }
