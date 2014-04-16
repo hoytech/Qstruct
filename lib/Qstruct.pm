@@ -12,6 +12,32 @@ XSLoader::load('Qstruct', $VERSION);
 
 
 
+my $reverse_type_lookup = {
+  1 => { name => 'string', width => 16, },
+  2 => { name => 'blob', width => 16, },
+  3 => { name => 'bool', },
+  4 => { name => 'float', width => 4, },
+  5 => { name => 'double', width => 8, },
+  6 => { name => 'int8', width => 1, },
+  7 => { name => 'int16', width => 2, },
+  8 => { name => 'int32', width => 4, },
+  9 => { name => 'int64', width => 8, },
+};
+
+sub type_lookup {
+  my $type = shift;
+
+  my $info = $reverse_type_lookup->{$type & 0xFFFF};
+
+  my $name = $info->{name};
+
+  $name = "u$name" if $type & (1<<16);
+
+  return ($name, $info->{width});
+}
+
+
+
 sub _install_closure {
   no strict 'refs';
   *{$_[0]} = $_[1];
@@ -46,6 +72,7 @@ sub load_schema {
       my $getter_name = "$def->{name}::Loader::get_$item->{name}";
 
       my $type = $item->{type};
+      my ($full_type_name, $type_width) = type_lookup($type);
       my $base_type = $type & 0xFFFF;
       my $fixed_array_size = $item->{fixed_array_size};
       my $is_unsigned = $type & (1<<16);
@@ -72,37 +99,65 @@ sub load_schema {
         _install_closure($getter_name, sub {
           Qstruct::Runtime::get_bool($_[0]->{e}, $byte_offset, $bit_offset);
         });
-      } elsif ($base_type == 9) { # int64
+      } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
+        my $getter_sub_name = "Qstruct::Runtime::get_$full_type_name";
+        my $getter_sub = \&$getter_sub_name;
+        my $type_setter_method = "set_$full_type_name";
+
         if ($is_array_dyn) {
           _install_closure($setter_name, sub {
             my $elems = scalar @{$_[1]};
-            my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * 8, 8);
+            my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * $type_width, $type_width);
             for (my $i=0; $i<$elems; $i++) {
-              $_[0]->{b}->set_uint64($array_offset + ($i * 8), $_[1]->[$i]);
+              $_[0]->{b}->$type_setter_method($array_offset + ($i * $type_width), $_[1]->[$i]);
             }
           });
 
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
-            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($_[0]->{e}, $byte_offset, 8) };
+            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($_[0]->{e}, $byte_offset, $type_width) };
             my @arr;
             tie @arr, 'Qstruct::Array',
                       {
                         n => $elems,
                         a => sub {
                                return undef if $_[0] >= $elems;
-                               return Qstruct::Runtime::get_uint64($buf, $array_base + ($_[0] * 8), 1);
+                               return $getter_sub->($buf, $array_base + ($_[0] * $type_width), 1);
+                             },
+                      };
+            return \@arr;
+          });
+        } elsif ($is_array_fix) {
+          _install_closure($setter_name, sub {
+            my $elems = scalar @{$_[1]};
+            die "$item->{name} is a fixed array of ${full_type_name}[$fixed_array_size] and you tried to set $elems values"
+              if $elems != $fixed_array_size;
+
+            for (my $i=0; $i<$elems; $i++) {
+              $_[0]->{b}->$type_setter_method($byte_offset + ($i * $type_width), $_[1]->[$i]);
+            }
+          });
+
+          _install_closure($getter_name, sub {
+            my $buf = $_[0]->{e};
+            my @arr;
+            tie @arr, 'Qstruct::Array',
+                      {
+                        n => $fixed_array_size,
+                        a => sub {
+                               return undef if $_[0] >= $fixed_array_size;
+                               return $getter_sub->($buf, $byte_offset + ($_[0] * $type_width), 1);
                              },
                       };
             return \@arr;
           });
         } else {
           _install_closure($setter_name, sub {
-            $_[0]->{b}->set_uint64($byte_offset, $_[1]);
+            $_[0]->{b}->$type_setter_method($byte_offset, $_[1]);
           });
 
           _install_closure($getter_name, sub {
-            Qstruct::Runtime::get_uint64($_[0]->{e}, $byte_offset);
+            $getter_sub->($_[0]->{e}, $byte_offset);
           });
         }
       } else {

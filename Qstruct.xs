@@ -164,6 +164,30 @@ get_uint64(buf_sv, byte_offset, allow_heap = 0)
         RETVAL
 
 
+double
+get_double(buf_sv, byte_offset, allow_heap = 0)
+        SV *buf_sv
+        size_t byte_offset
+        int allow_heap
+    CODE:
+        char *buf;
+        size_t buf_size;
+        double output;
+        int ret;
+
+        buf_size = SvCUR(buf_sv);
+        buf = SvPV(buf_sv, buf_size);
+
+        ret = qstruct_get_uint64(buf, buf_size, byte_offset, (uint64_t *) &output, allow_heap);
+
+        if (ret) croak("malformed qstruct");
+
+        RETVAL = output;
+    OUTPUT:
+        RETVAL
+
+
+
 int
 get_bool(buf_sv, byte_offset, bit_offset)
         SV *buf_sv
@@ -272,6 +296,14 @@ set_uint64(self, byte_offset, value)
         uint64_t value
     CODE:
         if (qstruct_builder_set_uint64(self, byte_offset, value)) croak("out of memory");
+
+void
+set_double(self, byte_offset, value)
+        Qstruct_Builder self
+        size_t byte_offset
+        double value
+    CODE:
+        if (qstruct_builder_set_uint64(self, byte_offset, *((uint64_t *)&value))) croak("out of memory");
 
 void
 set_bool(self, byte_offset, bit_offset, value)

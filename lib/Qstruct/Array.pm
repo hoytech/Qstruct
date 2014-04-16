@@ -14,7 +14,7 @@ sub TIEARRAY {
 }
 
 sub FETCH {
-  my $self  = shift;
+  my $self = shift;
   my $index = shift;
   return $self->{a}->($index);
 }
