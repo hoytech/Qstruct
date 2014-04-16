@@ -223,6 +223,41 @@ Because there is no first-class support for nested or linked data-types, the max
 
 =head1 ARRAYS
 
+As mentioned above, there are two different types of arrays: B<dynamic arrays> and B<fixed arrays>.
+
+
+=head2 DYNAMIC ARRAYS
+
+Dynamic arrays have empty bracketed array specifiers. Dynamic arrays can be of any type except for bool.
+
+Examples:
+
+    account_ids @0 uint64[];
+    profile_pictures @1 blob[];
+
+Dynamic arrays are stored on the heap. The size and offset of the array are stored adjacent in the body which consumes 16 bytes even for an empty array. Additionally, accessing them requires an indirection through the offset pointer. However, they are the most flexible type of arrays since they can contain 0 or more elements (up to available memory or address space limitations).
+
+
+=head2 FIXED ARRAYS
+
+Fixed arrays have a number in their bracketed array specifier. Only numeric (ie integer or floating point) values may be specified in fixed arrays. Strings and blobs must stored in dynamic arrays. bools can't be stored in any array (although you can store your own bit-fields in the integer types).
+
+Examples:
+
+    rainfall_by_month @0 float[12];
+    sha256_checksum @1 uint8[32];
+
+Fixed arrays are stored inline in the body of the message. Their size and offset from the start of the message is always known exactly so there is no need to store or use offset pointers or lengths. However, you can never change the size of the array so they should only be used when you are 100% certain that you will never want to expand, shrink, or remove this field.
+
+
+=head2 ACCESSING ARRAYS FROM PERL
+
+Just like a regular field, arrays are have C<get_> and C<set_> methods. For instance, here is how you could extract the first elements from an array field called C<profile_pictures>:
+
+    my $jpeg = $user->get_profile_pictures->[0];
+
+Because of the lazy-loading nature of Qstructs, none of the other elements will be accessed at all. If the message is in a memory-mapped file the other elements might never even get paged in to memory.
+
 
 
 =head1 ZERO-COPY
@@ -236,7 +271,7 @@ This module uses the "slow" but portable accessors described in L<libqstruct|htt
 Because the perl module uses the slow and portable accessors, no matter what CPU you use you do not need to ensure that you load messages from aligned offsets. When using the C API, if you choose to compile with the non-portable accessors you should be aware that depending on your CPU you may have reliabilty or performance issues if you load messages from non-aligned offsets. However, on modern intel x86-64 CPUs you can use the "fast" interface and not sacrifice reliability or performance even when accessing non-aligned messages.
 
 
-=head1 EXTENSIBLE
+=head1 SCHEMA EVOLUTION
 
 As long as you don't change existing fields' types or C<@> ids, you can always add new fields to a qstruct. Any messages that were created with the old schema will still be loadable. Accessing new fields in old messages will return the default values of their respective types.
 
