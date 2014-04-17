@@ -278,26 +278,26 @@ Default: 0
 
 =item  float/double
 
-IEEE-754 floating point numbers in little-endian byte order. C<float> and <double> both consume and are aligned at 4 and 8 bytes respectively.
+IEEE-754 floating point numbers in little-endian byte order. C<float> and C<double> both consume and are aligned at 4 and 8 bytes respectively.
 
 Default: 0.0
 
 =item  boolean
 
-A single-bit "flag". This is the only type where multiple values can be packed together inside a single-byte.
+A single-bit "flag". This is the only type where multiple values get packed together inside a single-byte.
 
 Default: 0 (false)
 
 
 =item  string/blob
 
-A pointer and size possibly referring to a subsequent part of the message. These fields consume at least 16 bytes each. The only difference between B<string>s and B<blob>s is that blobs are aligned at 16 bytes and are therefore suitable for maintaining alignment across nested qstructs.
+A pointer and size possibly referring to a subsequent part of the message. These fields consume at least 16 bytes each. The only difference between B<string>s and B<blob>s is that blobs are aligned at 16 bytes and are therefore suitable for maintaining message alignment across nested qstructs.
 
 Strings and blobs are both considered arbitrary sequences of bytes and neither type enforces any character encoding. I don't believe it is necessary for (or even the place of) a serialisation format to dictate encoding policies. Of course you are free to enforce/assume a common encoding for all of I<your> messages.
 
 Neither strings nor blobs are NUL-byte terminated. Failure to adhere to the associated sizes of strings or blobs is a serious bug in your code. In perl you never need to worry about this but you need to consider it when using the L<libqstruct|https://github.com/hoytech/libqstruct> C API.
 
-Qstruct strings employ a space optimisation called B<tagged-sizes>. This is the only "clever" packing trick in the Qstruct format. Because the alignment of strings doesn't matter and because 64 bit sizes have heaps of room to work with, string sizes are encoded specially. If the lower nibble of the first byte is zero then the whole 64-bit size is bit-shifted down 8 bits and is used as the size. If the lower nibble of the first byte was instead non-zero, this nibble is taken to be an inline length and the pointer is ignored. Instead, the string is located at the following byte and is free to use the remaining 7 bytes of the size and the 8 bytes of the following pointer. So, only strings of 15 (0xF) or fewer bytes can be size-tagged.
+Qstruct strings employ a space optimisation called B<tagged-sizes>. This is the only "clever" packing trick in the Qstruct format. Because the alignment of strings doesn't matter and because 64 bit sizes have loads of room to work with, string sizes are encoded specially. If the lower nibble of the first byte is zero then the whole 64-bit size is bit-shifted down 8 bits and is used as the size. If the lower nibble of the first byte was instead non-zero, this nibble is taken to be an inline length and the pointer is ignored. Instead, the string is located at the following byte and is free to use the remaining 7 bytes of the size and the 8 bytes of the following pointer. So, only strings of 15 (0xF) or fewer bytes can be size-tagged.
 
 Blobs never use tagged-sizes because of their alignment requirements.
 
@@ -325,7 +325,7 @@ Messages are not self-delimiting so when transmitting or storing they need to be
 
 =head2 HEADER
 
-All Qstructs start with a 16 byte C<header>. The first 8 bytes are reserved and should always be 0s. The next 8 bytes are a little-endian unsigned 64-bit integer that indicate how large the following C<body> is (the body is always shorter than the total message size because it doesn't include the header or the heap).
+All Qstructs start with a 16 byte C<header>. The first 8 bytes are reserved and should always be 0s. The next 8 bytes represent a little-endian unsigned 64-bit integer that indicates how large the following C<body> is (the body is always shorter than the total message size because it doesn't include the header or the heap).
 
     00000000  00 00 00 00 00 00 00 00  15 2f 00 00 00 00 00 00
               |--reserved (all 0s)--|  |body size (LE uint64)|
@@ -417,7 +417,7 @@ Dynamic arrays are stored on the heap. The size and offset of the array are stor
 
 =head2 FIXED ARRAYS
 
-Fixed arrays have a number in their bracketed array specifier. Only numeric (ie integer or floating point) values may be specified in fixed arrays. Strings and blobs must stored in dynamic arrays. bools can't be stored in any array (although you can store your own bit-fields in the integer types).
+Fixed arrays have a number in their bracketed array specifier. Only numeric (ie integer or floating point) values may be specified in fixed arrays. Strings and blobs must stored in dynamic arrays. bools can't be stored in any array (although you can store your own bit-fields in the integer, string, or blob types).
 
 Examples:
 
@@ -429,7 +429,7 @@ Fixed arrays are stored inline in the body of the message. Their size and offset
 
 =head2 ACCESSING ARRAYS FROM PERL
 
-Just like a regular field, arrays are have C<get_> and C<set_> methods. For instance, here is how you could extract the first elements from an array field called C<profile_pictures>:
+Just like regular fields, arrays have C<get_> and C<set_> methods. For instance, here is how you could extract the first element from an array field called C<profile_pictures>:
 
     my $jpeg = $user->get_profile_pictures->[0];
 
@@ -450,11 +450,13 @@ Because the perl module uses the slow and portable accessors, no matter what CPU
 
 =head1 SCHEMA EVOLUTION
 
-As long as you don't change existing fields' types or C<@> ids, you can always add new fields to a qstruct. Any messages that were created with the old schema will still be loadable. Accessing new fields in old messages will return the default values of their respective types.
+Comments can be added/removed anywhere in the schema. The qstruct definitions can be shuffled around in any order in the schema.
+
+As long as you don't change existing fields' types or C<@> ids, you can always add new fields to a qstruct. Any messages that were created with the old schema will still be loadable. Accessing new fields in old messages will return default values.
 
 You can change the name of any field as long as you don't change the C<@> id.
 
-The order of the fields in a struct are irrelevant -- only the types and C<@> ids influence the packing order. Similarly, comments can be added/removed anywhere.
+The order of the fields in a struct are irrelevant -- only the types and C<@> ids influence the packing order.
 
 You can change the signedness of integer types as long as you are OK with effectively re-casting the data (ie negative ints become large positive ints or large positive ints become negative ints).
 
@@ -514,3 +516,23 @@ Copyright 2014 Doug Hoyte.
 This module is licensed under the same terms as perl itself.
 
 The bundled C<libqstruct> is (C) Doug Hoyte and licensed under the 2-clause BSD license.
+
+=cut
+
+
+
+TODO:
+
+Qstruct::Compiler
+raw accessors
+improve ragel parser error messages
+make sure there are no integer overflows in the ragel parser
+canonicalisation, copy method
+dynamic arrays of strings/blobs
+test suite
+cool examples of zero-copy: LMDB_File, File::Map, etc
+make sure pointers always point forwards
+fuzzer (run in valgrind)
+vectored I/O builder for 0-copy/1-copy building
+  ? raw setters
+render method that uses buffer stealing
