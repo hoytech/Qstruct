@@ -5,17 +5,20 @@ use strict; use Data::Dumper;
     Qstruct::load_schema(q{
       qstruct MyPkg::User {
         id @0 uint64;
-        accounts @1 uint64[];
+        accounts @1 blob[];
       }
     });
 
     my $user_builder = MyPkg::User->build;
     $user_builder->set_id(100);
-    $user_builder->set_accounts([1,255]);
+    $user_builder->set_accounts(["asdf","abcdefghijklmnopqrstuvwxyz"]);
     my $encoded_data = $user_builder->finish;
 
-#    print $encoded_data;
-#__END__
+    print $encoded_data;
+
+my $user = MyPkg::User->load($encoded_data);
+for my $s (@{ $user->get_accounts }) { print STDERR "[$s]\n" }
+__END__
 
     my $user = MyPkg::User->load($encoded_data);
 my $accts = $user->get_accounts;

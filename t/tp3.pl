@@ -15,6 +15,7 @@ use strict; use Data::Dumper;
         u16 @8 uint16[3];
         s8 @9 int8[];
         omg @10 float[6];
+        np @11 string[];
       }
     });
 
@@ -30,6 +31,7 @@ use strict; use Data::Dumper;
     $user_builder->set_u16([0,1,-1]);
     $user_builder->set_s8([0,1,-1,255,128,127]);
     $user_builder->set_omg([3.1415, 945654, 4954.34, 123456.78, 234, 0.000023]);
+    $user_builder->set_np(["asdf", "roflcopter", "abcdefghijklmnopqrstuvwxyz"]);
     my $encoded_data = $user_builder->finish;
 
     my $user = MyPkg::User->load($encoded_data);
@@ -66,4 +68,8 @@ use strict; use Data::Dumper;
 
     for my $lol (@{ $user->get_omg }) {
       print "  OMG: $lol\n";
+    }
+
+    for my $lol (@{ $user->get_np }) {
+      print "  NP: $lol\n";
     }

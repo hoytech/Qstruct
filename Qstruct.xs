@@ -163,7 +163,7 @@ get_bool(buf_sv, byte_offset, bit_offset)
 
 
 void
-get_string(buf_sv, byte_offset, output_sv)
+get_string(buf_sv, byte_offset, output_sv, int allow_heap = 0)
         SV *buf_sv
         size_t byte_offset
         SV *output_sv
@@ -175,7 +175,7 @@ get_string(buf_sv, byte_offset, output_sv)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_get_pointer(buf, buf_size, byte_offset, &output, &output_size, 1);
+        ret = qstruct_get_pointer(buf, buf_size, byte_offset, &output, &output_size, 1, allow_heap);
 
         if (ret == -2) croak("string too large for 32 bit machine");
         if (ret) croak("malformed qstruct");
@@ -210,7 +210,7 @@ get_dyn_array(buf_sv, byte_offset, elem_size)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_get_pointer(buf, buf_size, byte_offset, &array_base, &array_size, elem_size);
+        ret = qstruct_get_pointer(buf, buf_size, byte_offset, &array_base, &array_size, elem_size, 0);
 
         if (ret == -2) croak("array too large for 32 bit machine");
         if (ret) croak("malformed qstruct");
@@ -256,7 +256,7 @@ set_bool(self, byte_offset, bit_offset, value)
         if (qstruct_builder_set_bool(self, byte_offset, bit_offset, value)) croak("out of memory");
 
 void
-set_string(self, byte_offset, value_sv)
+set_string(self, byte_offset, value_sv, int alignment)
         Qstruct_Builder self
         size_t byte_offset
         SV *value_sv
@@ -267,7 +267,7 @@ set_string(self, byte_offset, value_sv)
         value_size = SvCUR(value_sv);
         value = SvPV(value_sv, value_size);
 
-        if (qstruct_builder_set_pointer(self, byte_offset, value, value_size, 1, NULL)) croak("out of memory");
+        if (qstruct_builder_set_pointer(self, byte_offset, value, value_size, alignment, NULL)) croak("out of memory");
 
 size_t
 set_array(self, byte_offset, size, alignment)

@@ -82,15 +82,42 @@ sub load_schema {
       my $byte_offset = $item->{byte_offset};
       my $bit_offset = $item->{bit_offset};
 
-      if ($base_type == 1) { # string
-        _install_closure($setter_name, sub {
-          $_[0]->{b}->set_string($byte_offset, $_[1]);
-        });
+      if ($base_type == 1 || $base_type == 2) { # string/blob
+        my $alignment = $base_type == 1 ? 1 : 16;
+        if ($is_array_dyn) {
+          _install_closure($setter_name, sub {
+            my $elems = scalar @{$_[1]};
+            my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * 16, 16);
+            for (my $i=0; $i<$elems; $i++) {
+              $_[0]->{b}->set_string($array_offset + ($i * 16), $_[1]->[$i], $alignment);
+            }
+          });
 
-        _install_closure($getter_name, sub {
-          Qstruct::Runtime::get_string($_[0]->{e}, $byte_offset, exists $_[1] ? $_[1] : my $o);
-          return $o if !exists $_[1];
-        });
+          _install_closure($getter_name, sub {
+            my $buf = $_[0]->{e}; ## FIXME: alias
+            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($buf, $byte_offset, 16) };
+            my @arr;
+            tie @arr, 'Qstruct::Array',
+                      {
+                        n => $elems,
+                        a => sub {
+                               return undef if $_[0] >= $elems;
+                               Qstruct::Runtime::get_string($buf, $array_base + ($_[0] * 16), my $o, 1);
+                               return $o;
+                             },
+                      };
+            return \@arr;
+          });
+        } else {
+          _install_closure($setter_name, sub {
+            $_[0]->{b}->set_string($byte_offset, $_[1], $alignment);
+          });
+
+          _install_closure($getter_name, sub {
+            Qstruct::Runtime::get_string($_[0]->{e}, $byte_offset, exists $_[1] ? $_[1] : my $o);
+            return $o if !exists $_[1];
+          });
+        }
       } elsif ($base_type == 3) { # bool
         _install_closure($setter_name, sub {
           $_[0]->{b}->set_bool($byte_offset, $bit_offset, $_[1] ? 1 : 0);
@@ -114,8 +141,8 @@ sub load_schema {
           });
 
           _install_closure($getter_name, sub {
-            my $buf = $_[0]->{e};
-            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($_[0]->{e}, $byte_offset, $type_width) };
+            my $buf = $_[0]->{e}; ## FIXME: alias
+            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($buf, $byte_offset, $type_width) };
             my @arr;
             tie @arr, 'Qstruct::Array',
                       {
@@ -139,7 +166,7 @@ sub load_schema {
           });
 
           _install_closure($getter_name, sub {
-            my $buf = $_[0]->{e};
+            my $buf = $_[0]->{e}; ## FIXME: alias
             my @arr;
             tie @arr, 'Qstruct::Array',
                       {
@@ -521,18 +548,19 @@ The bundled C<libqstruct> is (C) Doug Hoyte and licensed under the 2-clause BSD 
 
 
 
-TODO:
+TODO pre-cpan:
 
 Qstruct::Compiler
 raw accessors
 improve ragel parser error messages
 make sure there are no integer overflows in the ragel parser
-canonicalisation, copy method
 dynamic arrays of strings/blobs
 test suite
 cool examples of zero-copy: LMDB_File, File::Map, etc
 make sure pointers always point forwards
 fuzzer (run in valgrind)
+render method that uses buffer stealing
+
+canonicalisation, copy method
 vectored I/O builder for 0-copy/1-copy building
   ? raw setters
-render method that uses buffer stealing
