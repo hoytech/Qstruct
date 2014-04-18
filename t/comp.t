@@ -1,7 +1,7 @@
 use strict;
 
 use Test::More qw/no_plan/;
-use Math::Int64 qw(int64 uint64);
+use Math::Int64 qw/int64 uint64/;
 use List::Util qw/shuffle/;
 
 use Qstruct;
@@ -36,7 +36,7 @@ my $type_specs = {
     vals => [0, -100, 2147483647],
   },
   uint32 => {
-    vals => [0, 2713640343, 4294967296],
+    vals => [0, 2713640343, 4294967295],
   },
   int64 => {
     vals => [int64('0'), int64('-1000'), int64('9223372036854775807')],
@@ -53,11 +53,16 @@ my $type_specs = {
 };
 
 
+my $curr_test = 0;
+
 sub run_test {
+  my @args = @_;
+
   my $schema = "qstruct TestSchema {\n";
 
-  for my $i (0..$#_) {
-    $schema .= "i$i \@$i $_[$i];\n";
+  for my $i (0..$#args) {
+    $args[$i] =~ s/\[x\]$/'['.int(rand(20)).']'/e;
+    $schema .= "i$i \@$i $args[$i];\n";
   }
 
   $schema .= "}\n";
@@ -68,12 +73,12 @@ sub run_test {
 
   my $builder = TestSchema->build;
 
-  my @build_order = shuffle 0..$#_;
+  my @build_order = shuffle 0..$#args;
   my @test_vals;
 
   for my $i (@build_order) {
     my $method = "set_i$i";
-    $test_vals[$i] = gen_rand_vals($_[$i]);
+    $test_vals[$i] = gen_rand_vals($args[$i]);
     #use Data::Dumper; print STDERR "$method: ".Dumper($test_vals[$i]);
     $builder->$method($test_vals[$i]);
   }
@@ -85,11 +90,13 @@ sub run_test {
 
   my $obj = TestSchema->load($encoded);
 
-  for my $i (0..$#_) {
+  for my $i (0..$#args) {
     my $method = "get_i$i";
     my $val = $obj->$method;
-    is_deeply($val, $test_vals[$i], "$_[$i]");
+    is_deeply($val, $test_vals[$i], "$args[$i] ($curr_test, $i)");
   }
+
+  $curr_test++;
 }
 
 sub gen_rand_vals {
@@ -106,7 +113,7 @@ sub gen_rand_vals {
     return [ map { pick_rand($type_spec->{vals}) } 1..$array_size ];
   } elsif ($spec =~ m/\[\]$/) {
     die "$type can't be dyn array" if $type_spec->{no_array_dyn};
-    return [ map { pick_rand($type_spec->{vals}) } 0..rand(10) ];
+    return [ map { pick_rand($type_spec->{vals}) } 0..int(rand(10)) ];
   } else {
     return pick_rand($type_spec->{vals});
   }
@@ -114,7 +121,7 @@ sub gen_rand_vals {
 
 sub pick_rand {
   my $arr_ref = shift;
-  return $arr_ref->[rand(scalar @$arr_ref)];
+  return $arr_ref->[int(rand(scalar @$arr_ref))];
 }
 
 
@@ -123,5 +130,11 @@ sub pick_rand {
 
 srand(0);
 
-run_test(qw{ int8 bool string[] bool uint64[4] float });
-run_test(qw{ string[] string[] });
+for (1..10) {
+  run_test(qw{ int8 uint8 int16 uint16 int32 uint32 int64 uint64 bool string blob float double }x4);
+  run_test(qw{ int8 bool string[] bool uint64[4] float });
+  run_test(qw{ string[] blob[] string[] string[] blob[] });
+  run_test((qw{ bool int8 }) x 9);
+  run_test(qw{ int8[] uint8[] int16[] uint16[] int32[] uint32[] int64[] uint64[] string[] blob[] float[] double[] }x10);
+  run_test(qw{ int8[x] uint8[x] int16[x] uint16[x] int32[x] uint32[x] int64[x] uint64[x] float[x] double[x] }x10);
+}
