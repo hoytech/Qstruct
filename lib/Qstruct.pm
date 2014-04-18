@@ -87,7 +87,7 @@ sub load_schema {
         if ($is_array_dyn) {
           _install_closure($setter_name, sub {
             my $elems = scalar @{$_[1]};
-            my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * 16, 16);
+            my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * 16, 8);
             for (my $i=0; $i<$elems; $i++) {
               $_[0]->{b}->set_string($array_offset + ($i * 16), $_[1]->[$i], $alignment);
             }
@@ -262,13 +262,13 @@ In addition to the above, Qstruct is heavily inspired by L<Cap'n Proto|http://ke
 
 =head1 GOALS
 
-The goal of Qstruct is to provide as close as possible performance to C C<struct>s -- even ones containing pointers -- while also being portable, extensible, and safe. The way it does this is by making the "in-memory" representation the same as the "wire" representation. Because it's redundant to distinguish between these two representations, this documentation will only refer to the single B<Qstruct format>.
+The goal of Qstruct is to provide as close as possible performance to C C<struct>s -- even ones containing pointers -- while also being portable, extensible, and safe. The way it does this is by making the "in-memory" representation the same as the "wire" representation. Because it's redundant to distinguish between these two formats, this documentation will only refer to the B<Qstruct format> which covers both in-memory and wire representations.
 
 C<Portable>: All integers and floating point numbers are stored in little-endian byte order and aren't necessarily stored at aligned offsets. Despite these restrictions, Qstructs can be used on any CPU, even ones that are big-endian or have strict alignment requirements.
 
 C<Extensible>: New fields can be added to qstruct schemas as needed without invalidating already created messages. Existing fields can be renamed or re-ordered so long as the types or C<@> ids aren't changed.
 
-C<Safe>: Accessing data from untrusted sources should never cause the program to read or write out of bounds (causing a segfault or worse). The Qstruct format is designed to be simple in order to help with verifying and testing of this. There is an in progress canonicalisation specification so Qstructs will be cache-friendly and suitable for digitally signing.
+C<Safe>: Accessing data from untrusted sources should never cause the program to read or write out of bounds (causing a segfault or worse). The Qstruct format is designed to be simple in order to help with verifying and testing of this. There is a canonicalisation specification being developed so canonicalised Qstructs will be cache-friendly and suitable for digitally signing.
 
 C<Efficient>: Because there is no difference between "in-memory" versus "wire" formats, there is no encoding/decoding needed. Even for extremely large messages, loading is instantaneous (it just does some basic sanity checking of the message size and header information). If you only access a few fields of a message you don't pay any deserialisation costs for the fields you didn't access. You only pay for what you use. Furthermore, all operations are inherently zero-copy. The values you extract will always be pointers into the message data. The only copying that occurs is what you copy manually (see below).
 
@@ -309,17 +309,23 @@ Always stored in little-endian byte order (even when in memory on big-endian mac
 
 Default: 0
 
+Alignment: 1, 2, 4, or 8 bytes
+
 =item  float/double
 
-IEEE-754 floating point numbers in little-endian byte order. C<float> and C<double> both consume and are aligned at 4 and 8 bytes respectively.
+IEEE-754 floating point numbers in little-endian byte order. C<float> and C<double> occupy 4 and 8 bytes respectively.
 
 Default: 0.0
+
+Alignment: 4 bytes for a float, 8 bytes for a double
 
 =item  boolean
 
 A single-bit "flag". This is the only type where multiple values get packed together inside a single-byte.
 
 Default: 0 (false)
+
+Alignment: N/A
 
 
 =item  string/blob
@@ -335,6 +341,8 @@ Qstruct strings employ a space optimisation called B<tagged-sizes>. This is the 
 Blobs never use tagged-sizes because of their alignment requirements.
 
 Default: "" (empty string)
+
+Alignment: The pointers to strings/blobs are aligned at 8. String data is aligned at 1, blob data is aligned at 16.
 
 
 =back
@@ -353,17 +361,17 @@ The message data should be considered a binary blob. It may contain NUL bytes so
 
 Messages can in theory be any size representable by an unsigned 64 bit number. However, on 32-bit machines some messages are too large to access and attempting to build or load/access these messages will throw exceptions.
 
-Messages are not self-delimiting so when transmitting or storing they need to be framed in some fashion. For example, when sending across a socket you might choose to send an 8-byte little-endian integer before the message data to indicate the size of the message that follows. When you apply framing be aware that it may impact data alignment at the receiving end.
+Messages are not self-delimiting so when transmitting or storing they need to be framed in some fashion. For example, when sending across a socket you might choose to send an 8-byte little-endian integer before the message data to indicate the size of the message that follows. When you apply framing be aware that it may impact data alignment at the receiving end (which is OK except that it may slightly degrade performance on some machines).
 
 
 =head2 HEADER
 
-All Qstructs start with a 16 byte C<header>. The first 8 bytes are reserved and should always be 0s. The next 8 bytes represent a little-endian unsigned 64-bit integer that indicates how large the following C<body> is (the body is always shorter than the total message size because it doesn't include the header or the heap).
+All Qstructs start with a 16 byte C<header>. The first 8 bytes are reserved and should always be 0s. The next 8 bytes represent a little-endian unsigned 64-bit integer that indicates how large the following B<body> structure is (the body is always shorter than the total message size because it doesn't include the header or the B<heap>).
 
     00000000  00 00 00 00 00 00 00 00  15 2f 00 00 00 00 00 00
               |--reserved (all 0s)--|  |body size (LE uint64)|
 
-The reserved bytes are for future extensions such as schema versioning.
+The first 8 bytes are reserved for future extensions such as schema versioning.
 
 
 
