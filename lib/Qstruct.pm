@@ -309,7 +309,7 @@ Always stored in little-endian byte order (even when in memory on big-endian mac
 
 Default: 0
 
-Alignment: 1, 2, 4, or 8 bytes
+Alignment: 1 (unaligned), 2, 4, or 8 bytes
 
 =item  float/double
 
@@ -334,7 +334,7 @@ A pointer and size possibly referring to a subsequent part of the message. These
 
 Strings and blobs are both considered arbitrary sequences of bytes and neither type enforces any character encoding. I don't believe it is necessary for (or even the place of) a serialisation format to dictate encoding policies. Of course you are free to enforce/assume a common encoding for all of I<your> messages.
 
-Neither strings nor blobs are NUL-byte terminated. Failure to adhere to the associated sizes of strings or blobs is a serious bug in your code. In perl you never need to worry about this but you need to consider it when using the L<libqstruct|https://github.com/hoytech/libqstruct> C API.
+Neither strings nor blobs are NUL-byte terminated. Failure to adhere to the associated sizes of strings or blobs is a serious bug in your code. In perl you never need to worry about this but you do need to be careful when using the L<libqstruct|https://github.com/hoytech/libqstruct> C API.
 
 Qstruct strings employ a space optimisation called B<tagged-sizes>. This is the only "clever" packing trick in the Qstruct format. Because the alignment of strings doesn't matter and because 64 bit sizes have loads of room to work with, string sizes are encoded specially. If the lower nibble of the first byte is zero then the whole 64-bit size is bit-shifted down 8 bits and is used as the size. If the lower nibble of the first byte was instead non-zero, this nibble is taken to be an inline length and the pointer is ignored. Instead, the string is located at the following byte and is free to use the remaining 7 bytes of the size and the 8 bytes of the following pointer. So, only strings of 15 (0xF) or fewer bytes can be size-tagged.
 
@@ -342,7 +342,7 @@ Blobs never use tagged-sizes because of their alignment requirements.
 
 Default: "" (empty string)
 
-Alignment: The pointers to strings/blobs are aligned at 8. String data is aligned at 1, blob data is aligned at 16.
+Alignment: The pointers to strings/blobs are aligned at 8. String data is aligned at 1 (unaligned), blob data is aligned at 16.
 
 
 =back
@@ -361,23 +361,21 @@ The message data should be considered a binary blob. It may contain NUL bytes so
 
 Messages can in theory be any size representable by an unsigned 64 bit number. However, on 32-bit machines some messages are too large to access and attempting to build or load/access these messages will throw exceptions.
 
-Messages are not self-delimiting so when transmitting or storing they need to be framed in some fashion. For example, when sending across a socket you might choose to send an 8-byte little-endian integer before the message data to indicate the size of the message that follows. When you apply framing be aware that it may impact data alignment at the receiving end (which is OK except that it may slightly degrade performance on some machines).
+Messages are not self-delimiting so when transmitting or storing they need to be framed in some fashion. For example, when sending across a socket you might choose to send an 8-byte little-endian integer before the message data to indicate the size of the message that follows. When you apply framing be aware that it may impact data alignment at the receiving end (which is OK except that misaligned messages may slightly degrade performance on some machines).
 
 
 =head2 HEADER
 
-All Qstructs start with a 16 byte C<header>. The first 8 bytes are reserved and should always be 0s. The next 8 bytes represent a little-endian unsigned 64-bit integer that indicates how large the following B<body> structure is (the body is always shorter than the total message size because it doesn't include the header or the B<heap>).
+All Qstructs start with a 16 byte C<header>. The first 8 bytes are reserved for future extensions such as schema versioning and should always be 0s. The next 8 bytes represent a little-endian unsigned 64-bit integer that indicates how large the following B<body> structure is (the body is always shorter than the total message size because it doesn't include the header or the B<heap>).
 
     00000000  00 00 00 00 00 00 00 00  15 2f 00 00 00 00 00 00
               |--reserved (all 0s)--|  |body size (LE uint64)|
-
-The first 8 bytes are reserved for future extensions such as schema versioning.
 
 
 
 =head2 BODY
 
-The body immediately follows the header. Its exact format depends on the schema. For example, consider the following schema:
+The body immediately follows the header. Its exact layout depends on the schema. For example, consider the following schema:
 
     qstruct User {
       id @0 uint64;
@@ -390,9 +388,9 @@ Suppose we create a message with the following data:
 
     my $user = User->build;
     $user->set_name("hello world!");
-    $user->set_id(100);
-    $user->set_is_admin(1);
-    $user->set_is_locked(1);
+         ->set_id(100)
+         ->set_is_admin(1)
+         ->set_is_locked(1);
     my $message = $user->finish;
 
 Here is the hexdump of the resulting message:
@@ -411,7 +409,7 @@ Here is the hexdump of the resulting message:
               |-> name (@2) tag byte indicating length of inline string
 
 
-When computing the body offsets, the Qstruct compiler will always try to find the first location in the message that a data type will fit into while still respecting the alignment preference of the data type. The algorithm is equivalent to a B<first-fit> memory allocator.
+When computing the offsets, the Qstruct compiler will always try to find the first location in the message that a data type will fit into while still respecting the alignment preference of the data type. The algorithm is equivalent to a B<first-fit> memory allocator.
 
 The body size needs to be stored in the header because the size of the body will change depending on the version of the schema. If a field that has an end offset beyond the message body is accessed, a default value is returned (see the types section).
 
@@ -453,12 +451,14 @@ Examples:
     account_ids @0 uint64[];
     profile_pictures @1 blob[];
 
-Dynamic arrays are stored on the heap. The size and offset of the array are stored adjacent in the body which consumes 16 bytes even for an empty array. Additionally, accessing them requires an indirection through the offset pointer. However, they are the most flexible type of arrays since they can contain 0 or more elements (up to available memory or address space limitations).
+Dynamic arrays are stored on the heap (except for tagged-size arrays). The size and offset of the array are stored adjacent in the body which consumes 16 bytes even for an empty array. Additionally, accessing them requires an indirection through the offset pointer. However, they are the most flexible type of arrays since they can contain 0 or more elements (up to available memory or address space limitations).
+
+In the same way as strings, dynamic arrays can be stored inside the adjacent size/pointer fields as long as their sizes and alignments are compatible. For example, dynamic C<int8>/C<uint8> arrays of up to length 15 can be stored in tagged-sizes. Similarly, up to 7 C<int16>/C<uint16>, 3 C<int32>/C<uint32>, or 1 C<int64/uint64> can be stored in the tagged-size.
 
 
 =head2 FIXED ARRAYS
 
-Fixed arrays have a number in their bracketed array specifier. Only numeric (ie integer or floating point) values may be specified in fixed arrays. Strings and blobs must stored in dynamic arrays. bools can't be stored in any array (although you can store your own bit-fields in the integer, string, or blob types).
+Fixed arrays have a number inside their bracketed array specifier. Only numeric (ie integer or floating point) values may be specified in fixed arrays. Strings and blobs cannot be stored in fixed arrays (only dynamic arrays). bools can't be stored in array at all (although you can store your own bit-fields in integer, string, or blob types).
 
 Examples:
 
@@ -518,7 +518,7 @@ When loading or accessing a message there should be no way to make this module c
 
 Unlike Cap'n Proto, the simplistic nature of the Qstruct format does not provide list-like/tree-like/nested data-structures so there is nothing to configure in the Qstruct implementation to prevent stack overflows, cycles, or recursion.
 
-Note that you can treat blobs as nested Qstructs and manually traverse them (or arrays of them). If you do that in some data-directed (as opposed to code-directed) fashion you may have similar issues. I suggest using purely code-directed traversals if possible.
+Note that you can treat blobs as nested Qstructs and manually traverse them (or arrays of them) if you want. If you do this in some data-directed fashion (as opposed to code-directed) your program may be vulnerable to resource-exhaustion attacks if it processes malicious messages. I suggest using purely code-directed message traversal if possible.
 
 
 =head1 CANONICALISATION
@@ -529,14 +529,15 @@ There is a lot to think about for this so don't rely on this feature for securit
 
     * Null out reserved area
     * Null out all free and unallocated space
-    * All pointers must point forward and be strictly increasing when traversed in a designated order
+    * Make sure 0-length strings/blobs/arrays always point to NULL
+    * All pointers (other than NULL pointers) must point forward and be
+      strictly increasing when traversed in a designated order
     * Make sure tagged-size optimisation is always applied when possible
     * Null out high bytes and high nibble in tagged-sizes
     * Fields and arrays of fields must always be at correct alignment
     * Ensure body is the right size for the current schema version
     * Ensure no extra padding on end of message
     * Normalise floating point NaN representations (qNaN/sNan)
-    * Make sure 0-length strings/blobs/arrays always point to NULL
 
 
 
@@ -568,12 +569,13 @@ Qstruct::Compiler
 raw accessors
 improve ragel parser error messages
 make sure there are no integer overflows in the ragel parser
-dynamic arrays of strings/blobs
 test suite
 cool examples of zero-copy: LMDB_File, File::Map, etc
 make sure pointers always point forwards
-fuzzer (run in valgrind)
+fuzzer (run in valgrind/-fsanitize=address)
 render method that uses buffer stealing
+
+TODO long-term:
 
 canonicalisation, copy method
 vectored I/O builder for 0-copy/1-copy building

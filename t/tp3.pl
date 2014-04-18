@@ -22,11 +22,11 @@ use strict; use Data::Dumper;
     my $user_builder = MyPkg::User->build;
     $user_builder->set_id(100);
     $user_builder->set_name("jimmy"x4);
-    $user_builder->set_email('jim@lol.com');
-    $user_builder->set_is_admin(1);
-    $user_builder->set_salary(128332.29);
-    $user_builder->set_temperatures([1.55, 934.334, 123456.9876, 7777777, -923343]);
-    $user_builder->set_lols([1,2,3,45]);
+    $user_builder->set_email('jim@lol.com')
+                 ->set_is_admin(1)
+                 ->set_salary(128332.29)
+                 ->set_temperatures([1.55, 934.334, 123456.9876, 7777777, -923343])
+                 ->set_lols([1,2,3,45]);
     $user_builder->set_i32([-1,1,9123]);
     $user_builder->set_u16([0,1,-1]);
     $user_builder->set_s8([0,1,-1,255,128,127]);

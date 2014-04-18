@@ -5,13 +5,14 @@ use strict; use Data::Dumper;
     Qstruct::load_schema(q{
       qstruct MyPkg::User {
         id @0 uint64;
-        accounts @1 blob[];
+        accounts @1 string[];
+        tp @2 uint8[];
       }
     });
 
     my $user_builder = MyPkg::User->build;
     $user_builder->set_id(100);
-    $user_builder->set_accounts(["asdf","abcdefghijklmnopqrstuvwxyz"]);
+    $user_builder->set_tp([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]);
     my $encoded_data = $user_builder->finish;
 
     print $encoded_data;
