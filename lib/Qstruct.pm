@@ -91,6 +91,7 @@ sub load_schema {
             for (my $i=0; $i<$elems; $i++) {
               $_[0]->{b}->set_string($array_offset + ($i * 16), $_[1]->[$i], $alignment);
             }
+            return $_[0];
           });
 
           _install_closure($getter_name, sub {
@@ -111,6 +112,7 @@ sub load_schema {
         } else {
           _install_closure($setter_name, sub {
             $_[0]->{b}->set_string($byte_offset, $_[1], $alignment);
+            return $_[0];
           });
 
           _install_closure($getter_name, sub {
@@ -121,6 +123,7 @@ sub load_schema {
       } elsif ($base_type == 3) { # bool
         _install_closure($setter_name, sub {
           $_[0]->{b}->set_bool($byte_offset, $bit_offset, $_[1] ? 1 : 0);
+          return $_[0];
         });
 
         _install_closure($getter_name, sub {
@@ -138,6 +141,7 @@ sub load_schema {
             for (my $i=0; $i<$elems; $i++) {
               $_[0]->{b}->$type_setter_method($array_offset + ($i * $type_width), $_[1]->[$i]);
             }
+            return $_[0];
           });
 
           _install_closure($getter_name, sub {
@@ -163,6 +167,7 @@ sub load_schema {
             for (my $i=0; $i<$elems; $i++) {
               $_[0]->{b}->$type_setter_method($byte_offset + ($i * $type_width), $_[1]->[$i]);
             }
+            return $_[0];
           });
 
           _install_closure($getter_name, sub {
@@ -181,6 +186,7 @@ sub load_schema {
         } else {
           _install_closure($setter_name, sub {
             $_[0]->{b}->$type_setter_method($byte_offset, $_[1]);
+            return $_[0];
           });
 
           _install_closure($getter_name, sub {
