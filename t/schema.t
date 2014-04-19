@@ -4,7 +4,7 @@ use Test::More tests => 1;
 
 use Qstruct;
 
-my $def = Qstruct::parse(q{
+Qstruct::load_schema(q{
     # asdfas
   qstruct Blah {
     # asdfas
@@ -28,4 +28,4 @@ my $def = Qstruct::parse(q{
   }
 });
 
-is(ref $def, 'Qstruct::Definitions');
+ok(1, 'parsed ok');

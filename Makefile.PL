@@ -25,6 +25,7 @@ my $myextlib = '';
     }
 }
 
+$LIBS = "$LIBS $ENV{XLDLIBS}" if $ENV{XLDLIBS};
 
 my %args = (
     NAME => 'Qstruct',
@@ -39,6 +40,7 @@ my %args = (
     },
     OBJECT                => '$(O_FILES)', # link all the C files too
     LIBS                => $LIBS,
+    CCFLAGS => $ENV{XCFLAGS} || '',
     ($myextlib ? (
         MYEXTLIB        => $myextlib,
         INC                => '-I./libqstruct',
