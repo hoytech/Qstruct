@@ -63,24 +63,24 @@ iterate(def, callback)
         HV *def_info, *items_iterator;
 
         for(; def; def = def->next) {
-        ENTER;
-        SAVETMPS;
+          ENTER;
+          SAVETMPS;
 
-        PUSHMARK(SP);
+          PUSHMARK(SP);
 
-        def_info = (HV *) sv_2mortal ((SV *) newHV ());
-        hv_store(def_info, "def_addr", 8, newSViv((size_t)def), 0);
-        hv_store(def_info, "name", 4, newSVpvn(def->name, def->name_len), 0);
-        hv_store(def_info, "body_size", 9, newSVnv(def->body_size), 0);
-        hv_store(def_info, "num_items", 9, newSVnv(def->num_items), 0);
-        XPUSHs(newRV((SV*)def_info));
+          def_info = (HV *) sv_2mortal ((SV *) newHV ());
+          hv_store(def_info, "def_addr", 8, newSViv((size_t)def), 0);
+          hv_store(def_info, "name", 4, newSVpvn(def->name, def->name_len), 0);
+          hv_store(def_info, "body_size", 9, newSVnv(def->body_size), 0);
+          hv_store(def_info, "num_items", 9, newSVnv(def->num_items), 0);
+          XPUSHs(newRV((SV*)def_info));
 
-        PUTBACK;
+          PUTBACK;
 
-        call_sv(callback, G_SCALAR);
+          call_sv(callback, G_SCALAR);
 
-        FREETMPS;
-        LEAVE;
+          FREETMPS;
+          LEAVE;
         }
 
 
