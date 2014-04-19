@@ -58,7 +58,7 @@ sub load_schema {
 
     _install_closure("$def->{name}::load", sub {
       Qstruct::Runtime::sanity_check($_[1]) || croak "malformed qstruct (too short)";
-      return bless { e => $_[1], }, "$_[0]::Loader";
+      return bless { e => \$_[1], }, "$_[0]::Loader";
     });
 
     _install_closure("$def->{name}::Builder::finish", sub {
@@ -95,15 +95,15 @@ sub load_schema {
           });
 
           _install_closure($getter_name, sub {
-            my $buf = $_[0]->{e}; ## FIXME: alias
-            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($buf, $byte_offset, 16) };
+            my $buf = $_[0]->{e};
+            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($$buf, $byte_offset, 16) };
             my @arr;
             tie @arr, 'Qstruct::Array',
                       {
                         n => $elems,
                         a => sub {
                                return undef if $_[0] >= $elems;
-                               Qstruct::Runtime::get_string($buf, $array_base + ($_[0] * 16), my $o, 1);
+                               Qstruct::Runtime::get_string($$buf, $array_base + ($_[0] * 16), my $o, 1);
                                return $o;
                              },
                       };
@@ -116,7 +116,7 @@ sub load_schema {
           });
 
           _install_closure($getter_name, sub {
-            Qstruct::Runtime::get_string($_[0]->{e}, $byte_offset, exists $_[1] ? $_[1] : my $o);
+            Qstruct::Runtime::get_string(${$_[0]->{e}}, $byte_offset, exists $_[1] ? $_[1] : my $o);
             return $o if !exists $_[1];
           });
         }
@@ -127,7 +127,7 @@ sub load_schema {
         });
 
         _install_closure($getter_name, sub {
-          Qstruct::Runtime::get_bool($_[0]->{e}, $byte_offset, $bit_offset);
+          Qstruct::Runtime::get_bool(${$_[0]->{e}}, $byte_offset, $bit_offset);
         });
       } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
         my $getter_sub_name = "Qstruct::Runtime::get_$full_type_name";
@@ -145,15 +145,15 @@ sub load_schema {
           });
 
           _install_closure($getter_name, sub {
-            my $buf = $_[0]->{e}; ## FIXME: alias
-            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($buf, $byte_offset, $type_width) };
+            my $buf = $_[0]->{e};
+            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($$buf, $byte_offset, $type_width) };
             my @arr;
             tie @arr, 'Qstruct::Array',
                       {
                         n => $elems,
                         a => sub {
                                return undef if $_[0] >= $elems;
-                               return $getter_sub->($buf, $array_base + ($_[0] * $type_width), 1);
+                               return $getter_sub->($$buf, $array_base + ($_[0] * $type_width), 1);
                              },
                       };
             return \@arr;
@@ -171,14 +171,14 @@ sub load_schema {
           });
 
           _install_closure($getter_name, sub {
-            my $buf = $_[0]->{e}; ## FIXME: alias
+            my $buf = $_[0]->{e};
             my @arr;
             tie @arr, 'Qstruct::Array',
                       {
                         n => $fixed_array_size,
                         a => sub {
                                return undef if $_[0] >= $fixed_array_size;
-                               return $getter_sub->($buf, $byte_offset + ($_[0] * $type_width), 1);
+                               return $getter_sub->($$buf, $byte_offset + ($_[0] * $type_width), 1);
                              },
                       };
             return \@arr;
@@ -190,7 +190,7 @@ sub load_schema {
           });
 
           _install_closure($getter_name, sub {
-            $getter_sub->($_[0]->{e}, $byte_offset);
+            $getter_sub->(${$_[0]->{e}}, $byte_offset);
           });
         }
       } else {
@@ -566,14 +566,15 @@ The bundled C<libqstruct> is (C) Doug Hoyte and licensed under the 2-clause BSD 
 TODO pre-cpan:
 
 Qstruct::Compiler
-raw accessors
+raw accessors for int/float types
 improve ragel parser error messages
 make sure there are no integer overflows in the ragel parser
-test suite
 cool examples of zero-copy: LMDB_File, File::Map, etc
-make sure pointers always point forwards
+!! make sure pointers always point forwards
 fuzzer (run in valgrind/-fsanitize=address)
 render method that uses buffer stealing
+tests:
+  * malformed messages
 
 TODO long-term:
 
