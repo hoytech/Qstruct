@@ -567,17 +567,19 @@ TODO pre-cpan:
 
 Qstruct::Compiler
 raw accessors for int/float types
+zerocopy array retrieval
 improve ragel parser error messages
 make sure there are no integer overflows in the ragel parser
 cool examples of zero-copy: LMDB_File, File::Map, etc
 !! make sure pointers always point forwards
-fuzzer (run in valgrind/-fsanitize=address)
-render method that uses buffer stealing
 tests:
   * malformed messages
+  * schema evolution
+  * fuzzer (run in valgrind/-fsanitize=address)
 
 TODO long-term:
 
 canonicalisation, copy method
+render method that uses buffer stealing
 vectored I/O builder for 0-copy/1-copy building
   ? raw setters
