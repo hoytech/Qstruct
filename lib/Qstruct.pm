@@ -278,12 +278,18 @@ Qstruct - Qstruct perl interface
     ## Load a user message:
     my $user = MyPkg::User->decode($message);
 
+    ## Scalar accessors:
     print "User id: " . $user->id . "\n";
     print "User name: " . $user->name . "\n";
     print "*** ADMIN ***\n" if $user->is_admin;
 
-    ## Zero-copy access of strings/blobs
+    ## Zero-copy access to strings/blobs:
     $user->name(my $name);
+
+    ## Zero-copy array iteration:
+    $user->emails->foreach(sub {
+      print "EMAIL is $_[0]\n";
+    });
 
 
 =head1 DESCRIPTION
@@ -363,6 +369,7 @@ There is also a C<len> method which of course means you can iterate over arrays:
     ## Array iteration (zero-copy)
 
     my $emails = $user->emails;
+
     for(my $i=0; $i < $emails->len; $i++) {
       $emails->get($i, my $email);
       print "Email: ", $email, "\n";
@@ -400,11 +407,21 @@ When encoding messages, you can simply pass in an appropriately sized string and
 
 Dynamic arrays can also be accessed with the same raw accessors:
 
-    $user->account_ids->raw(my $array_of_account_ids_as_a_buffer);
+    $user->account_ids->raw(my $buffer_of_little_endian_uint64);
 
-Since C<account_ids> is of type C<uint64[]>, the above variable will be a buffer of C<8 * N> bytes where N is the (dynamic) number of account ids stored.
+Since C<account_ids> is of type C<uint64[]>, the above variable will be a buffer of C<N * 8> bytes where N is the (dynamic) number of account ids stored and 8 is the number of bytes in a C<uint64>.
 
-Note that numeric values are stored in little-endian format so if you use raw accessors on arrays with elements of more than 2 byte sizes you will need to C<unpack> them in order for your code to be portable.
+    Dynamic arrays can be set with raw buffers in the same way as fixed arrays:
+
+    my $msg = MyPkg::User->encode({
+      account_ids => $buffer_of_little_endian_uint64;
+    });
+
+If the length of C<$buffer_of_little_endian_uint64> is not divisible by C<8> then an exception will be thrown.
+
+Note that numeric values are stored in little-endian format so if you use raw accessors on arrays with elements of more than 2 byte sizes then you will need to C<pack> and C<unpack> them in order for your code to be portable.
+
+For most purposes, raw array access is unnecessary and you should use the normal array accessors described above.
 
 
 =head1 EXCEPTIONS
@@ -412,10 +429,18 @@ Note that numeric values are stored in little-endian format so if you use raw ac
 This module will throw exceptions in the following conditions:
 
     * Schema parse errors
+
     * Out of memory during encoding
+
     * You are on a 32-bit system and you attempt to access
       a field that can't fit in your address space
+
     * Accessing truncated/malformed qstructs
+
+    * Trying to set an array from a raw buffer that is the
+      incorrect size
+
+    * Attempting to modify a Qstruct::Array
 
 Note that when fields aren't set, accessing them will I<not> throw exceptions. Instead, it will return the default values of their respective types (see L<Qstruct::Spec>). This is even true of old messages that were created with old versions of the schema before the field was defined.
 
@@ -477,3 +502,4 @@ canonicalisation, copy method
 fewer copies in encode method after final malloc
   ?? maybe it can steal the malloc buffer and be zerocopy
 vectored I/O builder for 0-copy/1-copy building
+optional :utf8 type modifier that enforces utf validation on encoding and decoding
