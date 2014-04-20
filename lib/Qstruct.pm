@@ -68,8 +68,8 @@ sub load_schema {
     for(my $i=0; $i < $def->{num_items}; $i++) {
       my $item = Qstruct::Definitions::get_item($def->{def_addr}, $i);
 
-      my $setter_name = "$def->{name}::Builder::set_$item->{name}";
-      my $getter_name = "$def->{name}::Loader::get_$item->{name}";
+      my $setter_name = "$def->{name}::Builder::$item->{name}";
+      my $getter_name = "$def->{name}::Loader::$item->{name}";
 
       my $type = $item->{type};
       my ($full_type_name, $type_width) = type_lookup($type);
@@ -82,8 +82,8 @@ sub load_schema {
       my $byte_offset = $item->{byte_offset};
       my $bit_offset = $item->{bit_offset};
 
-      my $getter_sub_name = "Qstruct::Runtime::get_$full_type_name";
-      my $getter_sub = \&$getter_sub_name;
+      my $type_getter_sub_name = "Qstruct::Runtime::get_$full_type_name";
+      my $type_getter_sub = \&$type_getter_sub_name;
       my $type_setter_method = "set_$full_type_name";
 
       if ($is_array_dyn) {
@@ -132,7 +132,7 @@ sub load_schema {
                         n => $elems,
                         a => sub {
                                return undef if $_[0] >= $elems;
-                               return $getter_sub->($$buf, $array_base + ($_[0] * $type_width), 1);
+                               return $type_getter_sub->($$buf, $array_base + ($_[0] * $type_width), 1);
                              },
                       };
             return \@arr;
@@ -161,7 +161,7 @@ sub load_schema {
                         n => $fixed_array_size,
                         a => sub {
                                return undef if $_[0] >= $fixed_array_size;
-                               return $getter_sub->($$buf, $byte_offset + ($_[0] * $type_width), 1);
+                               return $type_getter_sub->($$buf, $byte_offset + ($_[0] * $type_width), 1);
                              },
                       };
             return \@arr;
@@ -197,7 +197,7 @@ sub load_schema {
           });
 
           _install_closure($getter_name, sub {
-            $getter_sub->(${$_[0]->{e}}, $byte_offset);
+            $type_getter_sub->(${$_[0]->{e}}, $byte_offset);
           });
         } else {
           croak "unknown type: $base_type/$type";

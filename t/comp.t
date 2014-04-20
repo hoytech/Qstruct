@@ -62,7 +62,7 @@ sub run_test {
 
   for my $i (0..$#args) {
     $args[$i] =~ s/\[x\]$/'['.int(rand(20)).']'/e;
-    $schema .= "i$i \@$i $args[$i];\n";
+    $schema .= "item$i \@$i $args[$i];\n";
   }
 
   $schema .= "}\n";
@@ -77,7 +77,7 @@ sub run_test {
   my @test_vals;
 
   for my $i (@build_order) {
-    my $method = "set_i$i";
+    my $method = "item$i";
     $test_vals[$i] = gen_rand_vals($args[$i]);
     #use Data::Dumper; print STDERR "$method: ".Dumper($test_vals[$i]);
     $builder->$method($test_vals[$i]);
@@ -91,7 +91,7 @@ sub run_test {
   my $obj = TestSchema->load($encoded);
 
   for my $i (0..$#args) {
-    my $method = "get_i$i";
+    my $method = "item$i";
     my $val = $obj->$method;
     is_deeply($val, $test_vals[$i], "$args[$i] ($curr_test, $i)");
   }
