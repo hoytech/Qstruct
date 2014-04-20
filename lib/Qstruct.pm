@@ -450,7 +450,7 @@ The bundled C<libqstruct> is (C) Doug Hoyte and licensed under the 2-clause BSD 
 
 TODO pre-cpan:
 
-improve ragel parser error messages
+Qstruct::Compiler
 !! make sure there are no integer overflows in the ragel parser
 !! make sure anywhere we pass SV* into XS code we check SvPOK
 !! make sure pointers always point forwards
@@ -464,7 +464,6 @@ tests:
 
 TODO long-term:
 
-Qstruct::Compiler
 canonicalisation, copy method
 fewer copies in encode method after final malloc
   ?? maybe it can steal the malloc buffer and be zerocopy
