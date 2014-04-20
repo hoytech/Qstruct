@@ -38,6 +38,7 @@ parse_schema(schema_sv)
         struct qstruct_definition *def;
         char err_buf[1024];
 
+        if (!SvPOK(schema_sv)) croak("schema must be a string");
         schema_size = SvCUR(schema_sv);
         schema = SvPV(schema_sv, schema_size);
 
@@ -126,6 +127,7 @@ sanity_check(buf_sv)
         char *buf;
         size_t buf_size;
 
+        if (!SvPOK(buf_sv)) croak("buf is not a string");
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
@@ -150,6 +152,7 @@ get_bool(buf_sv, byte_offset, bit_offset)
         int output;
         int ret;
 
+        if (!SvPOK(buf_sv)) croak("buf is not a string");
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
@@ -172,6 +175,7 @@ get_string(buf_sv, byte_offset, output_sv, int allow_heap = 0)
         size_t buf_size, output_size;
         int ret;
 
+        if (!SvPOK(buf_sv)) croak("buf is not a string");
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
@@ -208,6 +212,7 @@ get_raw_bytes(buf_sv, byte_offset, length, output_sv, int allow_heap = 0)
         size_t buf_size, output_size;
         int ret;
 
+        if (!SvPOK(buf_sv)) croak("buf is not a string");
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
@@ -243,6 +248,7 @@ get_dyn_array(buf_sv, byte_offset, elem_size)
         int ret;
         AV *rv;
 
+        if (!SvPOK(buf_sv)) croak("buf is not a string");
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
@@ -299,6 +305,7 @@ set_string(self, byte_offset, value_sv, int alignment)
         char *value;
         size_t value_size;
 
+        if (!SvPOK(value_sv)) croak("value is not a string");
         value_size = SvCUR(value_sv);
         value = SvPV(value_sv, value_size);
 
@@ -328,6 +335,7 @@ set_raw_bytes(self, byte_offset, bytes)
         size_t bytes_size;
         char *bytesp;
 
+        if (!SvPOK(bytes)) croak("bytes is not a string");
         bytes_size = SvCUR(bytes);
         bytesp = SvPV(bytes, bytes_size);
 

@@ -486,7 +486,6 @@ TODO pre-cpan:
 
 Qstruct::Compiler
 !! make sure there are no integer overflows in the ragel parser
-!! make sure anywhere we pass SV* into XS code we check SvPOK
 !! make sure pointers always point forwards
 
 tests:

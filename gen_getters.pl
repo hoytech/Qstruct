@@ -33,6 +33,7 @@ get_$real_type(buf_sv, byte_offset, allow_heap = 0)
         $real_c_type output;
         int ret;
 
+        if (!SvPOK(buf_sv)) croak("buf is not a string");
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
