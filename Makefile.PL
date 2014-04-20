@@ -36,7 +36,7 @@ my %args = (
     DEFINE => '',
     LICENSE => 'perl',
     dist => {
-      PREOP => 'perldoc -uT lib/Qstruct.pm > README.pod; pod2text README.pod > $(DISTVNAME)/README',
+      PREOP => 'pod2text lib/Qstruct.pm > $(DISTVNAME)/README',
     },
     OBJECT                => '$(O_FILES)', # link all the C files too
     LIBS                => $LIBS,
