@@ -72,3 +72,10 @@ $(MYEXTLIB): libqstruct/Makefile libqstruct/qstruct/*.h libqstruct/*.rl libqstru
 	cd libqstruct && $(MAKE) libqstruct$(LIB_EXT)
 EOT
 }
+
+sub MY::realclean {
+  return <<'EOT';
+realclean: clean
+	cd libqstruct && $(MAKE) clean
+EOT
+}
