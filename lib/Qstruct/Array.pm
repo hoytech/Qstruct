@@ -85,4 +85,16 @@ sub foreach {
 }
 
 
+sub len {
+  return $_[0]->{n};
+}
+
+
+sub get {
+  my $self = shift;
+  $self->{a}->($_[0], exists $_[1] ? $_[1] : my $o);
+  return $o if !exists $_[1];
+}
+
+
 1;
