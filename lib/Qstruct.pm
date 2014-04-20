@@ -279,13 +279,15 @@ Qstruct - Qstruct perl interface
 
 =head1 DESCRIPTION
 
-B<Qstruct> is a binary serialisation format that requires data schemas and this is the dynamic-language reference implementation in perl.
+B<Qstruct> is a binary serialisation format that requires data schemas and this is the dynamic-language reference implementation perl module.
 
-L<Qstruct::Spec> is specification for the qstruct format. Because in qstructs the "wire" and "in-memory" formats are the same, the C<encode> and C<decode> functions are somewhat mis-named. As soon as the object is built in memory, it is ready to be copied out to disk or the network, and as soon as it is read or mapped into memory it is ready for accessing.
+The specification for the qstruct format is documented here: L<Qstruct::Spec>.
 
-This module is designed to be particularly efficient for "decoding" qstructs. Strings, blobs, and arrays can all be randomly accessed or iterated over without reading or parsing any unrelated parts of the message. Furthermore, these types can be mapped in a zero-copy manner where the message data is never copied -- only pointers into the message are recorded.
+Because in qstructs the "wire" and "in-memory" formats are the same, the C<encode> and C<decode> functions are somewhat mis-named. As soon as the object is built in memory, it is ready to be copied out to disk or the network, and as soon as it is read or mapped into memory it is ready for accessing so C<encode> and C<decode> are mostly no-ops.
 
-The encoder in this module is not slow per-se, it just does more memory-allocations and copying than an optimised implementation would. The compiled static interface will probably be optimised for encoding eventually.
+This module is designed to be particularly efficient for reading qstructs. Strings, blobs, and arrays can all be randomly-accessed or iterated over without reading or parsing any unrelated parts of the message (laziness). Furthermore, all copies of message data can be avoided -- only pointers into the message memory are recorded (zero-copy).
+
+The encoder in this module is not exactly slow, it just does more memory-allocations and copying than an optimised implementation would. The compiled static interface will probably be optimised for encoding eventually.
 
 
 
@@ -297,15 +299,15 @@ As shown in the synopsis, fields can be accessed simply by calling their corresp
 
     my $name = $user->name;
 
-However, due to the semantics of return values in perl, the above line of code allocates new memory and copies the C<name> field into it which can be inefficient for several reasons.
+However, due to the semantics of return values in perl, the above line of code allocates new memory and copies the C<name> field into it which can be inefficient for two reasons:
 
 Firstly, copying takes time and this time is proportional to how large the data is. If it's really large and/or you only need to access a small part of it, then copying can be wasteful.
 
-Secondly, zero-copy is efficient because it minimises the impact on your memory system. If you aren't copying the data, you aren't paging it in from disk, putting it into your filesystem or CPU caches, pushing other things out of caches, or impacting your CPU's translation lookaside buffer (TLB).
+Secondly, zero-copy is efficient because it minimises the impact on your memory system. If you aren't copying the data, you aren't paging it in from disk, pulling it into your filesystem/CPU caches, pushing other things out, or exercising your CPU's translation lookaside buffer (TLB).
 
 Qstruct is always B<lazy> when it comes to memory access: It will only access the bare-minimum memory required to fulfill accessor requests.
 
-If you wish to avoid copying, you need to pass an "output" scalar into the accessor method:
+If you wish to avoid copying however, you need to pass an "output" scalar into the accessor method:
 
     ## Field access (zero-copy)
 
@@ -313,15 +315,14 @@ If you wish to avoid copying, you need to pass an "output" scalar into the acces
 
 Passing these "output" scalars into methods is a common theme throughtout the L<Qstruct> perl module.
 
-For more information on zero-copy, see the L<Test::ZeroCopy> module and the C<t/zerocopy.t> test in this distribution that uses it.
-
 This module is designed to work with modules like L<File::Map> which map files into perl strings without actually copying them into memory and also L<LMDB_File> which is a transactional in-process data-base that has zero-copy interfaces. With these modules you can have true zero-copy access to data in the filesystem from your high-level perl code just as conveniently as with most copying interfaces.
 
+For more information on zero-copy, see the L<Test::ZeroCopy> module and the C<t/zerocopy.t> test in this distribution that uses it.
 
 
 =head1 ARRAYS
 
-When you call the accessor method on an array it returns a special overloaded object of type C<Qstruct::ArrayRef>. This object can (as you might guess) be accessed as an array reference:
+When you call the accessor method on an array it returns a special overloaded object of type C<Qstruct::ArrayRef>. This object can (obviously) be accessed as an array reference:
 
     ## Array random access (copying)
 
@@ -399,7 +400,7 @@ Note that numeric values are stored in little-endian format so if you use raw ac
 
 =head1 EXCEPTIONS
 
-This module will throw exceptions on errors. The following conditions will throw exceptions:
+This module will throw exceptions in the following conditions:
 
     * Schema parse errors
     * Out of memory during encoding
@@ -412,9 +413,9 @@ Note that when fields aren't set, accessing them will I<not> throw exceptions. I
 
 =head1 PORTABILITY
 
-This module uses the "slow" but portable accessors described in L<libqstruct|https://github.com/hoytech/libqstruct> meaning it should work on any machine regardless of byte order or alignment requirements. Despite the name, these accessors are not actually slow relative to the overhead of making a perl function or method call.
+This module uses the "slow" but portable accessors described in L<libqstruct|https://github.com/hoytech/libqstruct> meaning it should work on any machine regardless of byte order or alignment requirements. Despite the name, these accessors are not actually slow relative to the overhead of making a perl function or method call so there is little point in optimising them for the perl module.
 
-Because the perl module uses the slow and portable accessors, no matter what CPU you use you do not need to ensure that you load messages from aligned offsets. When using the C API, if you choose to compile with the non-portable accessors you should be aware that depending on your CPU you may have reliabilty or performance issues if you load messages from non-aligned offsets. However, on modern intel x86-64 CPUs you can use the "fast" interface and not sacrifice reliability or performance even when accessing non-aligned messages.
+Because the perl module uses the slow and portable accessors, no matter what CPU you use you do not need to ensure that you load messages from aligned offsets. When using the C API, if you choose to compile with the non-portable accessors you should be aware that depending on your CPU you may have reliabilty or performance issues if you load messages from non-aligned offsets. However, modern intel x86-64 CPUs are perfectly suited for the "fast" interface and it can be used without sacrificing reliability or performance (even with non-aligned messages).
 
 
 
