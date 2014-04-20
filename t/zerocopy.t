@@ -25,26 +25,26 @@ Qstruct::load_schema(q{
 });
 
 my $enc = MyObj->build
-            ->set_str("hello world")
-            ->set_str2("hello world"x100)
-            ->set_strs(["HELLLLLLLLLLLLLLLLLLLLLLLLLLO!", "roflcopter"])
-            ->set_blob("Q"x4096)
-            ->set_blobs(["\x00", "Z"x100000])
-            ->finish;
+            ->str("hello world")
+            ->str2("hello world"x100)
+            ->strs(["HELLLLLLLLLLLLLLLLLLLLLLLLLLO!", "roflcopter"])
+            ->blob("Q"x4096)
+            ->blobs(["\x00", "Z"x100000])
+            ->encode;
 
-my $obj = MyObj->load($enc);
+my $obj = MyObj->decode($enc);
 
 {
-  $obj->get_str(my $val);
+  $obj->str(my $val);
   Test::ZeroCopy::is_zerocopy($val, $enc);
 }
 
 {
-  $obj->get_str2(my $val);
+  $obj->str2(my $val);
   Test::ZeroCopy::is_zerocopy($val, $enc);
 }
 
 {
-  $obj->get_blob(my $val);
+  $obj->blob(my $val);
   Test::ZeroCopy::is_zerocopy($val, $enc);
 }
