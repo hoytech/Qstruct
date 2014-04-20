@@ -12,9 +12,9 @@ my $myextlib = '';
     my @libdata = ExtUtils::Liblist->ext($LIBS || '-lqstruct', 0, 'parse_qstructs');
     my @stdinc = qw(/usr/include /usr/local/include);
     push @stdinc, $libdata[3] if $libdata[3];
-    my($Head) = grep -f "$_/qstruct_compiler.h", @stdinc;
+    my($Head) = grep -f "$_/qstruct/compiler.h", @stdinc;
     if(($INC || $Head) && $libdata[0]) {
-        $INC ||= "-I$Head" if -f "$libdata[3]/qstruct_compiler.h";
+        $INC ||= "-I$Head" if -f "$libdata[3]/qstruct/compiler.h";
         warn "Will use SYSTEM qstruct in $libdata[3]\n";
         $LIBS ||= '-lqstruct';
         warn "If that path isn't a standard one, you may need to set LD_LIBRARY_PATH!\n"
@@ -68,7 +68,7 @@ WriteMakefile(%args);
 
 sub MY::postamble {
   return <<'EOT';
-$(MYEXTLIB): libqstruct/Makefile libqstruct/*.h libqstruct/*.rl libqstruct/*.c
+$(MYEXTLIB): libqstruct/Makefile libqstruct/qstruct/*.h libqstruct/*.rl libqstruct/*.c
 	cd libqstruct && $(MAKE) libqstruct$(LIB_EXT)
 EOT
 }

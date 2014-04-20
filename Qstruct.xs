@@ -10,10 +10,10 @@
 #include "perl_math_int64.h"
 
 
-#include "qstruct_utils.h"
-#include "qstruct_compiler.h"
-#include "qstruct_loader.h"
-#include "qstruct_builder.h"
+#include "qstruct/utils.h"
+#include "qstruct/compiler.h"
+#include "qstruct/loader.h"
+#include "qstruct/builder.h"
 
 
 typedef struct qstruct_definition * Qstruct_Definitions;

@@ -5,13 +5,12 @@ lib/Qstruct.pm
 lib/Qstruct/Array.pm
 lib/Qstruct/Spec.pod
 libqstruct/compiler.c
-libqstruct/internal.h
 libqstruct/LICENSE
 libqstruct/parser.rl
-libqstruct/qstruct_builder.h
-libqstruct/qstruct_compiler.h
-libqstruct/qstruct_loader.h
-libqstruct/qstruct_utils.h
+libqstruct/qstruct/builder.h
+libqstruct/qstruct/compiler.h
+libqstruct/qstruct/loader.h
+libqstruct/qstruct/utils.h
 libqstruct/README.md
 Makefile.PL
 MANIFEST
