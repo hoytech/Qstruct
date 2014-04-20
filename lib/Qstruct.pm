@@ -56,12 +56,21 @@ sub load_schema {
       return bless { b => Qstruct::Builder->new($body_size), }, "$_[0]::Builder";
     });
 
-    _install_closure("$def->{name}::load", sub {
+    _install_closure("$def->{name}::encode", sub {
+      my $params = $_[1];
+      my $builder = bless { b => Qstruct::Builder->new($body_size), }, "$_[0]::Builder";
+      foreach my $key (keys %$params) {
+        $builder->$key($params->{$key});
+      }
+      return $builder->encode;
+    });
+
+    _install_closure("$def->{name}::decode", sub {
       Qstruct::Runtime::sanity_check($_[1]) || croak "malformed qstruct (too short)";
       return bless { e => \$_[1], }, "$_[0]::Loader";
     });
 
-    _install_closure("$def->{name}::Builder::finish", sub {
+    _install_closure("$def->{name}::Builder::encode", sub {
       return $_[0]->{b}->render;
     });
 
@@ -239,23 +248,23 @@ Qstruct - Quick structure serialisation
 
     ## Build a new user message
     my $user_builder = MyPkg::User->build;
-    $user_builder->set_id(100);
-    $user_builder->set_name("jimmy");
-    $user_builder->set_is_admin(1);
-    $user_builder->set_account_ids([1234,5678]);
-    my $message = $user_builder->finish;
+    $user_builder->id(100);
+    $user_builder->name("jimmy");
+    $user_builder->is_admin(1);
+    $user_builder->account_ids([1234,5678]);
+    my $message = $user_builder->encode;
 
     ## Load a user message and access some fields
-    my $user = MyPkg::User->load($message);
-    print "User id: " . $user->get_id . "\n";
-    print "User name: " . $user->get_name . "\n";
-    print "*** ADMIN ***\n" if $user->get_is_admin;
+    my $user = MyPkg::User->decode($message);
+    print "User id: " . $user->id . "\n";
+    print "User name: " . $user->name . "\n";
+    print "*** ADMIN ***\n" if $user->is_admin;
 
     ## Zero-copy access of strings/blobs
-    $user->get_name(my $name);
+    $user->name(my $name);
 
     ## Arrays
-    foreach my $id (@{ $user->get_account_ids }) {
+    foreach my $id (@{ $user->account_ids }) {
       print "$id\n";
     }
 
@@ -394,11 +403,11 @@ The body immediately follows the header. Its exact layout depends on the schema.
 Suppose we create a message with the following data:
 
     my $user = User->build;
-    $user->set_name("hello world!");
-         ->set_id(100)
-         ->set_is_admin(1)
-         ->set_is_locked(1);
-    my $message = $user->finish;
+    $user->name("hello world!");
+         ->id(100)
+         ->is_admin(1)
+         ->is_locked(1);
+    my $message = $user->encode;
 
 Here is the hexdump of the resulting message:
 
@@ -477,9 +486,9 @@ Fixed arrays are stored inline in the body of the message. Their size and offset
 
 =head2 ACCESSING ARRAYS FROM PERL
 
-Just like regular fields, arrays have C<get_> and C<set_> methods. For instance, here is how you could extract the first element from an array field called C<profile_pictures>:
+Just like regular fields, arrays have accessor methods. For instance, here is how you could extract the first element from an array field called C<profile_pictures>:
 
-    my $jpeg = $user->get_profile_pictures->[0];
+    my $jpeg = $user->profile_pictures->[0];
 
 Because of the lazy-loading nature of Qstructs, none of the other elements will be accessed at all. If the message is in a memory-mapped file the other elements might never even get paged in to memory.
 

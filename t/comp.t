@@ -83,12 +83,12 @@ sub run_test {
     $builder->$method($test_vals[$i]);
   }
 
-  my $encoded = $builder->finish;
+  my $encoded = $builder->encode;
   undef $builder;
 
   #print $encoded;
 
-  my $obj = TestSchema->load($encoded);
+  my $obj = TestSchema->decode($encoded);
 
   for my $i (0..$#args) {
     my $method = "item$i";
