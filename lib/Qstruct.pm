@@ -449,8 +449,6 @@ The bundled C<libqstruct> is (C) Doug Hoyte and licensed under the 2-clause BSD 
 
 TODO pre-cpan:
 
-organise docs better
-  cool examples of zero-copy: LMDB_File, File::Map, etc
 improve ragel parser error messages
 !! make sure there are no integer overflows in the ragel parser
 !! make sure anywhere we pass SV* into XS code we check SvPOK
@@ -461,6 +459,7 @@ tests:
   * schema evolution
   * when accessing body fields, if the body is too short it returns default values (and never reads into the heap)
   * fuzzer (run in valgrind/-fsanitize=address)
+
 
 TODO long-term:
 
