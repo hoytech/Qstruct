@@ -45,7 +45,16 @@ sub _install_closure {
 
 
 sub load_schema {
-  my $spec = shift;
+  my $spec;
+
+  if (@_ == 1) {
+    $spec = shift;
+  } elsif (@_ == 2 && $_[0] eq __PACKAGE__) {
+    ## Qstruct->load_schema is common mis-use, allow anyway
+    $spec = pop;
+  } else {
+    croak "load_schema needs 1 argument (the schema)";
+  }
 
   Qstruct::parse_schema($spec)->iterate(sub {
     my $def = shift;
