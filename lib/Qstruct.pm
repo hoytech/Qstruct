@@ -82,9 +82,13 @@ sub load_schema {
       my $byte_offset = $item->{byte_offset};
       my $bit_offset = $item->{bit_offset};
 
-      if ($base_type == 1 || $base_type == 2) { # string/blob
-        my $alignment = $base_type == 1 ? 1 : 16;
-        if ($is_array_dyn) {
+      my $getter_sub_name = "Qstruct::Runtime::get_$full_type_name";
+      my $getter_sub = \&$getter_sub_name;
+      my $type_setter_method = "set_$full_type_name";
+
+      if ($is_array_dyn) {
+        if ($base_type == 1 || $base_type == 2) { # string/blob
+          my $alignment = $base_type == 1 ? 1 : 16;
           _install_closure($setter_name, sub {
             my $elems = scalar @{$_[1]};
             my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * 16, 8);
@@ -109,32 +113,7 @@ sub load_schema {
                       };
             return \@arr;
           });
-        } else {
-          _install_closure($setter_name, sub {
-            $_[0]->{b}->set_string($byte_offset, $_[1], $alignment);
-            return $_[0];
-          });
-
-          _install_closure($getter_name, sub {
-            Qstruct::Runtime::get_string(${$_[0]->{e}}, $byte_offset, exists $_[1] ? $_[1] : my $o);
-            return $o if !exists $_[1];
-          });
-        }
-      } elsif ($base_type == 3) { # bool
-        _install_closure($setter_name, sub {
-          $_[0]->{b}->set_bool($byte_offset, $bit_offset, $_[1] ? 1 : 0);
-          return $_[0];
-        });
-
-        _install_closure($getter_name, sub {
-          Qstruct::Runtime::get_bool(${$_[0]->{e}}, $byte_offset, $bit_offset);
-        });
-      } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
-        my $getter_sub_name = "Qstruct::Runtime::get_$full_type_name";
-        my $getter_sub = \&$getter_sub_name;
-        my $type_setter_method = "set_$full_type_name";
-
-        if ($is_array_dyn) {
+        } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
           _install_closure($setter_name, sub {
             my $elems = scalar @{$_[1]};
             my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * $type_width, $type_width);
@@ -158,7 +137,11 @@ sub load_schema {
                       };
             return \@arr;
           });
-        } elsif ($is_array_fix) {
+        } else {
+          croak "dynamic arrays of type $base_type/$type not supported";
+        }
+      } elsif ($is_array_fix) {
+        if ($base_type >= 4 && $base_type <= 9) { # floats and ints
           _install_closure($setter_name, sub {
             my $elems = scalar @{$_[1]};
             die "$item->{name} is a fixed array of ${full_type_name}[$fixed_array_size] and you tried to set $elems values"
@@ -184,6 +167,30 @@ sub load_schema {
             return \@arr;
           });
         } else {
+          croak "fixed arrays of type $base_type/$type not supported";
+        }
+      } else { ## scalar
+        if ($base_type == 1 || $base_type == 2) { # string/blob
+          my $alignment = $base_type == 1 ? 1 : 16;
+          _install_closure($setter_name, sub {
+            $_[0]->{b}->set_string($byte_offset, $_[1], $alignment);
+            return $_[0];
+          });
+
+          _install_closure($getter_name, sub {
+            Qstruct::Runtime::get_string(${$_[0]->{e}}, $byte_offset, exists $_[1] ? $_[1] : my $o);
+            return $o if !exists $_[1];
+          });
+        } elsif ($base_type == 3) { # bool
+          _install_closure($setter_name, sub {
+            $_[0]->{b}->set_bool($byte_offset, $bit_offset, $_[1] ? 1 : 0);
+            return $_[0];
+          });
+
+          _install_closure($getter_name, sub {
+            Qstruct::Runtime::get_bool(${$_[0]->{e}}, $byte_offset, $bit_offset);
+          });
+        } elsif ($base_type >= 4 && $base_type <= 9) {
           _install_closure($setter_name, sub {
             $_[0]->{b}->$type_setter_method($byte_offset, $_[1]);
             return $_[0];
@@ -192,9 +199,9 @@ sub load_schema {
           _install_closure($getter_name, sub {
             $getter_sub->(${$_[0]->{e}}, $byte_offset);
           });
+        } else {
+          croak "unknown type: $base_type/$type";
         }
-      } else {
-        croak "unknown type: $base_type/$type";
       }
     }
   });
