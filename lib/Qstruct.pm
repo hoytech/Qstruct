@@ -315,9 +315,7 @@ Passing these "output" scalars into methods is a common theme throughtout the L<
 
 For more information on zero-copy, see the L<Test::ZeroCopy> module and the C<t/zerocopy.t> test in this distribution that uses it.
 
-This module is designed to work with modules like L<File::Map> which map files into perl strings without actually copying them into memory and also L<LMDB_File> which is a transactional in-process data-base that has zero-copy interfaces also.
-
-With these modules you can have true zero-copy access to data in the filesystem from your high-level perl code just as conveniently as most copying interfaces.
+This module is designed to work with modules like L<File::Map> which map files into perl strings without actually copying them into memory and also L<LMDB_File> which is a transactional in-process data-base that has zero-copy interfaces. With these modules you can have true zero-copy access to data in the filesystem from your high-level perl code just as conveniently as with most copying interfaces.
 
 
 
@@ -340,7 +338,7 @@ Of course references can also be de-referenced and iterated over:
       print "email: $email\n";
     }
 
-But C<Qstruct::ArrayRef> are actually special objects that have methods. The problem with the above approach is that while the elements are lazy-loaded, they are not zero-copy, in other words new memory is being allocated for them by perl and then they are copied into this new memory.
+But C<Qstruct::ArrayRef> are actually special objects that have methods. The problem with the above approach is that while the elements are lazy-loaded, they are not zero-copy. In other words, for the elements it actually does decide to load, new memory is being allocated for them by perl and then they are being copied into it.
 
 L<Qstruct> provides another interface that avoids these copies, the C<get> method:
 
@@ -425,6 +423,8 @@ Because the perl module uses the slow and portable accessors, no matter what CPU
 L<Qstruct::Spec> - The Qstruct design objectives and format specification
 
 L<Qstruct::Compiler> - The perl module reference compiler-implementation
+
+L<Test::ZeroCopy> - More information on zero-copy and how it is tested for
 
 L<libqstruct|https://github.com/hoytech/libqstruct> - Shared C library
 
