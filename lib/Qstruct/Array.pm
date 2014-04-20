@@ -29,4 +29,50 @@ sub STORE {
 }
 
 
+package Qstruct::ArrayRef;
+
+use strict;
+
+use overload
+  ## Make this behave like an array ref
+  '@{}' => sub { $_[0]->{arr} },
+
+  ## This method is used by Test::More is_deeply()
+  ## FIXME: if it doesn't match is_deeply() prints dumb 'Operation """": no method found' error
+  'eq' => sub {
+            my ($self, $compare) = @_;
+            my $arr = $self->{arr};
+            return '' if @$arr != @$compare;
+            for my $i (0 .. (@$compare - 1)) {
+              return '' if $arr->[$i] ne $compare->[$i];
+            }
+            return 1;
+          },
+  ;
+
+
+sub new {
+  my ($class, $elems, $elem_accessor, $raw_accessor) = @_;
+
+  my @arr;
+  tie @arr, 'Qstruct::Array', {
+                                n => $elems,
+                                a => $elem_accessor,
+                              };
+
+  return bless { n => $elems, arr => \@arr, raw => $raw_accessor, }, $class; 
+}
+
+
+sub raw {
+  my $self = shift;
+
+  die "array type doesn't support raw access"
+    if !$self->{raw};
+
+  $self->{raw}->(exists $_[0] ? $_[0] : my $o);
+  return $o if !exists $_[0];
+}
+
+
 1;

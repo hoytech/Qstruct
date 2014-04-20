@@ -196,6 +196,42 @@ get_string(buf_sv, byte_offset, output_sv, int allow_heap = 0)
         SvREADONLY_on(buf_sv);
 
 
+
+void
+get_raw_bytes(buf_sv, byte_offset, length, output_sv, int allow_heap = 0)
+        SV *buf_sv
+        size_t byte_offset
+        size_t length
+        SV *output_sv
+    CODE:
+        char *buf, *output;
+        size_t buf_size, output_size;
+        int ret;
+
+        buf_size = SvCUR(buf_sv);
+        buf = SvPV(buf_sv, buf_size);
+
+        ret = qstruct_get_raw_bytes(buf, buf_size, byte_offset, length, &output, &output_size, allow_heap);
+        if (ret) croak("malformed qstruct");
+
+        SvUPGRADE(output_sv, SVt_PV);
+
+        // Link the reference counts together
+        sv_magicext(output_sv, buf_sv, PERL_MAGIC_ext, NULL, NULL, 0);
+
+        SvCUR_set(output_sv, output_size);
+        SvPV_set(output_sv, output);
+        SvPOK_only(output_sv);
+
+        // Don't try to free this memory: it's owned by buf_sv
+        SvLEN_set(output_sv, 0);
+
+        SvREADONLY_on(output_sv);
+        SvREADONLY_on(buf_sv);
+
+
+
+
 AV *
 get_dyn_array(buf_sv, byte_offset, elem_size)
         SV *buf_sv
@@ -224,7 +260,6 @@ get_dyn_array(buf_sv, byte_offset, elem_size)
         RETVAL = rv;
     OUTPUT:
         RETVAL
-
 
 
 

@@ -110,17 +110,12 @@ sub load_schema {
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
             my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($$buf, $byte_offset, 16) };
-            my @arr;
-            tie @arr, 'Qstruct::Array',
-                      {
-                        n => $elems,
-                        a => sub {
+            return Qstruct::ArrayRef->new($elems,
+                             sub {
                                return undef if $_[0] >= $elems;
                                Qstruct::Runtime::get_string($$buf, $array_base + ($_[0] * 16), my $o, 1);
                                return $o;
-                             },
-                      };
-            return \@arr;
+                             });
           });
         } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
           _install_closure($setter_name, sub {
@@ -135,16 +130,11 @@ sub load_schema {
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
             my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($$buf, $byte_offset, $type_width) };
-            my @arr;
-            tie @arr, 'Qstruct::Array',
-                      {
-                        n => $elems,
-                        a => sub {
+            return Qstruct::ArrayRef->new($elems,
+                             sub {
                                return undef if $_[0] >= $elems;
                                return $type_getter_sub->($$buf, $array_base + ($_[0] * $type_width), 1);
-                             },
-                      };
-            return \@arr;
+                             });
           });
         } else {
           croak "dynamic arrays of type $base_type/$type not supported";
@@ -171,16 +161,13 @@ sub load_schema {
 
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
-            my @arr;
-            tie @arr, 'Qstruct::Array',
-                      {
-                        n => $fixed_array_size,
-                        a => sub {
+            return Qstruct::ArrayRef->new($fixed_array_size,
+                             sub {
                                return undef if $_[0] >= $fixed_array_size;
                                return $type_getter_sub->($$buf, $byte_offset + ($_[0] * $type_width), 1);
-                             },
-                      };
-            return \@arr;
+                             }, sub {
+                               Qstruct::Runtime::get_raw_bytes($$buf, $byte_offset, $fixed_array_size * $type_width, $_[0]);
+                             });
           });
         } else {
           croak "fixed arrays of type $base_type/$type not supported";
@@ -254,12 +241,12 @@ Qstruct - Quick structure serialisation
     });
 
     ## Build a new user message
-    my $user_builder = MyPkg::User->build;
-    $user_builder->id(100);
-    $user_builder->name("jimmy");
-    $user_builder->is_admin(1);
-    $user_builder->account_ids([1234,5678]);
-    my $message = $user_builder->encode;
+    my $message = MyPkg::User->encode({
+                    name => "jimmy",
+                    id => 100,
+                    is_admin => 1,
+                    account_ids => [1234,5678],
+                  });
 
     ## Load a user message and access some fields
     my $user = MyPkg::User->decode($message);
