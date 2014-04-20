@@ -134,6 +134,8 @@ sub load_schema {
                              sub {
                                return undef if $_[0] >= $elems;
                                return $type_getter_sub->($$buf, $array_base + ($_[0] * $type_width), 1);
+                             }, sub {
+                               Qstruct::Runtime::get_raw_bytes($$buf, $array_base, $elems * $type_width, $_[0], 1);
                              });
           });
         } else {
