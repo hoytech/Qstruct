@@ -585,10 +585,8 @@ The bundled C<libqstruct> is (C) Doug Hoyte and licensed under the 2-clause BSD 
 
 TODO pre-cpan:
 
-Qstruct::Compiler
-raw accessors for int/float types
-zerocopy array retrieval
-cool examples of zero-copy: LMDB_File, File::Map, etc
+organise docs better
+  cool examples of zero-copy: LMDB_File, File::Map, etc
 improve ragel parser error messages
 !! make sure there are no integer overflows in the ragel parser
 !! make sure anywhere we pass SV* into XS code we check SvPOK
@@ -601,7 +599,8 @@ tests:
 
 TODO long-term:
 
+Qstruct::Compiler
 canonicalisation, copy method
-render method that uses buffer stealing
+fewer copies in encode method after final malloc
+  ?? maybe it can steal the malloc buffer and be zerocopy
 vectored I/O builder for 0-copy/1-copy building
-  ? raw setters
