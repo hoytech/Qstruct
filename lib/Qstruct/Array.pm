@@ -60,7 +60,7 @@ sub new {
                                 a => $elem_accessor,
                               };
 
-  return bless { n => $elems, arr => \@arr, raw => $raw_accessor, }, $class; 
+  return bless { n => $elems, arr => \@arr, a => $elem_accessor, raw => $raw_accessor, }, $class; 
 }
 
 
@@ -72,6 +72,16 @@ sub raw {
 
   $self->{raw}->(exists $_[0] ? $_[0] : my $o);
   return $o if !exists $_[0];
+}
+
+
+sub foreach {
+  my $self = shift;
+
+  for my $i (0 .. ($self->{n} - 1)) {
+    $self->{a}->($i, my $o);
+    $_[0]->($o);
+  }
 }
 
 

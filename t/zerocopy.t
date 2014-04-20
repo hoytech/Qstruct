@@ -10,7 +10,7 @@ eval {
 if ($@) {
   plan skip_all => "Test::ZeroCopy not installed";
 } else {
-  plan tests => 5;
+  plan tests => 7;
 }
 
 
@@ -56,4 +56,10 @@ my $obj = MyObj->decode($enc);
   Test::ZeroCopy::is_zerocopy($val, $enc);
   my $val2 = $obj->hash->raw;
   Test::ZeroCopy::isnt_zerocopy($val2, $enc);
+}
+
+{
+  $obj->strs->foreach(sub {
+    Test::ZeroCopy::is_zerocopy($_[0], $enc);
+  });
 }

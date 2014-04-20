@@ -113,8 +113,8 @@ sub load_schema {
             return Qstruct::ArrayRef->new($elems,
                              sub {
                                return undef if $_[0] >= $elems;
-                               Qstruct::Runtime::get_string($$buf, $array_base + ($_[0] * 16), my $o, 1);
-                               return $o;
+                               Qstruct::Runtime::get_string($$buf, $array_base + ($_[0] * 16), exists $_[1] ? $_[1] : my $o, 1);
+                               return $o if !exists $_[1];
                              });
           });
         } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
