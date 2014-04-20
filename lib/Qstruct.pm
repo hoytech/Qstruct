@@ -212,7 +212,7 @@ sub load_schema {
           _install_closure($getter_name, sub {
             Qstruct::Runtime::get_bool(${$_[0]->{e}}, $byte_offset, $bit_offset);
           });
-        } elsif ($base_type >= 4 && $base_type <= 9) {
+        } elsif ($base_type >= 4 && $base_type <= 9) { # floats and inst
           _install_closure($setter_name, sub {
             $_[0]->{b}->$type_setter_method($byte_offset, $_[1]);
             return $_[0];
