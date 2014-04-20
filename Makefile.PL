@@ -67,30 +67,8 @@ WriteMakefile(%args);
 
 
 sub MY::postamble {
-    if($myextlib) {
-	if ($^O =~ /MSWin32/ && !defined($ENV{SYSTEMROOT})) {
-	    if ($Config{'make'} =~ /dmake/i) {
-		return <<'EOT';
-$(MYEXTLIB): libqstruct/Makefile
-@[
-	cd libqstruct
-	$(MAKE) libqstruct$(LIB_EXT)
-	cd ..
-]
-EOT
-	    } elsif ($Config{'make'} =~ /nmake/i) {
-		return <<'EOT';
-$(MYEXTLIB): libqstruct/Makefile
-	cd libqstruct
-	$(MAKE) libqstruct$(LIB_EXT)
-	cd ..
-EOT
-	    } 
-	} else {
-	    return <<'EOT';
-$(MYEXTLIB): libqstruct/Makefile
+  return <<'EOT';
+$(MYEXTLIB): libqstruct/Makefile libqstruct/*.h libqstruct/*.rl libqstruct/*.c
 	cd libqstruct && $(MAKE) libqstruct$(LIB_EXT)
 EOT
-	}
-    }
 }
