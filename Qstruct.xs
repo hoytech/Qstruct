@@ -284,6 +284,20 @@ set_array(self, byte_offset, size, alignment)
     OUTPUT:
         RETVAL
 
+void
+set_raw_bytes(self, byte_offset, bytes)
+        Qstruct_Builder self
+        size_t byte_offset
+        SV *bytes
+    CODE:
+        size_t bytes_size;
+        char *bytesp;
+
+        bytes_size = SvCUR(bytes);
+        bytesp = SvPV(bytes, bytes_size);
+
+        if (qstruct_builder_set_raw_bytes(self, byte_offset, bytesp, bytes_size)) croak("out of memory");
+
 
 
 SV *

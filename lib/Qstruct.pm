@@ -152,12 +152,19 @@ sub load_schema {
       } elsif ($is_array_fix) {
         if ($base_type >= 4 && $base_type <= 9) { # floats and ints
           _install_closure($setter_name, sub {
-            my $elems = scalar @{$_[1]};
-            die "$item->{name} is a fixed array of ${full_type_name}[$fixed_array_size] and you tried to set $elems values"
-              if $elems != $fixed_array_size;
+            if (ref $_[1]) {
+              my $elems = scalar @{$_[1]};
+              croak "$item->{name} is a fixed array of ${full_type_name}[$fixed_array_size] but you passed in an array of $elems values"
+                if $elems != $fixed_array_size;
 
-            for (my $i=0; $i<$elems; $i++) {
-              $_[0]->{b}->$type_setter_method($byte_offset + ($i * $type_width), $_[1]->[$i]);
+              for (my $i=0; $i<$elems; $i++) {
+                $_[0]->{b}->$type_setter_method($byte_offset + ($i * $type_width), $_[1]->[$i]);
+              }
+            } else {
+              my $total_size = $fixed_array_size * $type_width;
+              croak "$item->{name} is a fixed array of $total_size bytes but you provided " . length($_[1]) . " bytes"
+                if length($_[1]) != $total_size;
+              $_[0]->{b}->set_raw_bytes($byte_offset, $_[1]);
             }
             return $_[0];
           });
@@ -584,10 +591,12 @@ TODO pre-cpan:
 Qstruct::Compiler
 raw accessors for int/float types
 zerocopy array retrieval
-improve ragel parser error messages
-make sure there are no integer overflows in the ragel parser
 cool examples of zero-copy: LMDB_File, File::Map, etc
+improve ragel parser error messages
+!! make sure there are no integer overflows in the ragel parser
+!! make sure anywhere we pass SV* into XS code we check SvPOK
 !! make sure pointers always point forwards
+
 tests:
   * malformed messages
   * schema evolution
