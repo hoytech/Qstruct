@@ -10,7 +10,7 @@ eval {
 if ($@) {
   plan skip_all => "Test::ZeroCopy not installed";
 } else {
-  plan tests => 3;
+  plan tests => 5;
 }
 
 
@@ -21,6 +21,7 @@ Qstruct::load_schema(q{
     strs @2 string[];
     blob @3 blob;
     blobs @4 blob[];
+    hash @5 uint8[32];
   }
 });
 
@@ -30,6 +31,7 @@ my $enc = MyObj->build
             ->strs(["HELLLLLLLLLLLLLLLLLLLLLLLLLLO!", "roflcopter"])
             ->blob("Q"x4096)
             ->blobs(["\x00", "Z"x100000])
+            ->hash("Q"x32)
             ->encode;
 
 my $obj = MyObj->decode($enc);
@@ -47,4 +49,11 @@ my $obj = MyObj->decode($enc);
 {
   $obj->blob(my $val);
   Test::ZeroCopy::is_zerocopy($val, $enc);
+}
+
+{
+  $obj->hash->raw(my $val);
+  Test::ZeroCopy::is_zerocopy($val, $enc);
+  my $val2 = $obj->hash->raw;
+  Test::ZeroCopy::isnt_zerocopy($val2, $enc);
 }
