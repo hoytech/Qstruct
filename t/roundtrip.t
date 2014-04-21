@@ -113,7 +113,7 @@ sub gen_rand_vals {
     return [ map { pick_rand($type_spec->{vals}) } 1..$array_size ];
   } elsif ($spec =~ m/\[\]$/) {
     die "$type can't be dyn array" if $type_spec->{no_array_dyn};
-    return [ map { pick_rand($type_spec->{vals}) } 0..int(rand(10)) ];
+    return [ map { pick_rand($type_spec->{vals}) } 0..int(rand(100)) ];
   } else {
     return pick_rand($type_spec->{vals});
   }
@@ -130,7 +130,7 @@ sub pick_rand {
 
 srand(0);
 
-for (1..10) {
+for (1 .. ($ENV{QSTRUCT_TEST_ROUNDTRIP_ITERS} || 10)) {
   run_test(qw{ int8 uint8 int16 uint16 int32 uint32 int64 uint64 bool string blob float double }x4);
   run_test(qw{ int8 bool string[] bool uint64[4] float });
   run_test(qw{ string[] blob[] string[] string[] blob[] });
