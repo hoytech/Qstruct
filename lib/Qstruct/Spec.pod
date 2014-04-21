@@ -9,20 +9,22 @@ Qstruct - Design objectives and format specification
 
 B<Qstruct> is a binary data serialisation format. Unlike L<Storable>, L<Data::MessagePack>, L<Sereal>, L<CBOR::XS> etc, Qstruct requires a schema. This makes it more like L<ASN.1|http://www.itu.int/en/ITU-T/asn1/Pages/introduction.aspx>, L<Thrift::XS>, or L<Google::ProtocolBuffers>.
 
-In addition to the above, Qstruct is heavily inspired by L<Cap'n Proto|http://kentonv.github.io/capnproto/>. I am indebted to Kenton Varda for thinking through and publishing many insights into how this type of serialisation should work. Qstructs originally came about as an attempt to port Cap'n Proto to perl.
+In addition to the above, Qstruct is heavily inspired by L<Cap'n Proto|http://kentonv.github.io/capnproto/>. I am indebted to Kenton Varda for publishing many insights into how this type of serialisation should work. Qstructs originally came about as an attempt to port Cap'n Proto to perl.
 
 
 =head1 GOALS
 
-The goal of Qstruct is to provide as close as possible performance to C C<struct>s -- even ones containing pointers -- while also being portable, extensible, and safe. The way it does this is by making the "in-memory" representation the same as the "wire" representation. Because it's redundant to distinguish between these two formats, this documentation will only refer to the B<Qstruct format> which covers both in-memory and wire representations.
+The goal of Qstruct is to provide as close as possible performance to C C<struct>s -- even ones containing pointers -- while also being portable, extensible, and safe.
+
+With qstructs, the "in-memory" representation is the same as the "wire" representation. Because it's redundant to distinguish between these two formats, this documentation will only refer to B<the Qstruct format> which covers both in-memory and wire representations.
 
 C<Portable>: All integers and floating point numbers are stored in little-endian byte order and aren't necessarily stored at aligned offsets. Despite these restrictions, Qstructs can be used on any CPU, even ones that are big-endian or have strict alignment requirements.
 
 C<Extensible>: New fields can be added to qstruct schemas as needed without invalidating already created messages. Existing fields can be renamed or re-ordered so long as the types or C<@> ids aren't changed.
 
-C<Safe>: Accessing data from untrusted sources should never cause the program to read or write out of bounds (causing a segfault or worse). The Qstruct format is designed to be simple in order to help with verifying and testing of this. There is a canonicalisation specification being developed so canonicalised Qstructs will be cache-friendly and suitable for digitally signing.
+C<Safe>: Accessing data from untrusted sources should never cause the program to read or write out of bounds (causing a segfault or worse). The Qstruct format is designed to be simple in order to help with the verifying and testing of this. There is a canonicalisation specification being developed so canonicalised Qstructs will be cache-friendly and suitable for digital signing.
 
-C<Efficient>: Because there is no difference between "in-memory" versus "wire" formats, there is no encoding/decoding needed. Even for extremely large messages, loading is instantaneous (it just does some basic sanity checking of the message size and header information). If you only access a few fields of a message you don't pay any deserialisation costs for the fields you didn't access. You only pay for what you use. Furthermore, all operations are inherently zero-copy. The values you extract will always be pointers into the message data. The only copying that occurs is what you copy manually (see below).
+C<Efficient>: Because there is no difference between in-memory versus wire formats, there is no encoding/decoding needed. Even for extremely large messages, loading is instantaneous (it just does some basic sanity checking of the message size and header information). If you only access a few fields of a message you don't pay any deserialisation costs for the fields you didn't access. In other words, you only pay for what you use because messages accessors are B<lazy>. Furthermore, all operations are inherently B<zero-copy>: The values you extract will always be pointers into the message data. The only copying that occurs is what you copy out manually (see below).
 
 =head1 SCHEMA LANGUAGE
 
@@ -71,9 +73,11 @@ Default: 0.0
 
 Alignment: 4 bytes for a float, 8 bytes for a double
 
-=item  boolean
+=item  bool
 
 A single-bit "flag". This is the only type where multiple values get packed together inside a single-byte.
+
+bool is the one type that can't be stored in any sort of array. However, you can store your own bit-fields in integers, arrays of integers, strings, or blobs.
 
 Default: 0 (false)
 
@@ -82,20 +86,19 @@ Alignment: N/A
 
 =item  string/blob
 
-A pointer and size possibly referring to a subsequent part of the message. These fields consume at least 16 bytes each. The only difference between B<string>s and B<blob>s is that blobs are aligned at 16 bytes and are therefore suitable for maintaining message alignment across nested qstructs.
+A (size, offset) tuple referring to a subsequent part of the message. These fields consume at least 16 bytes each. The only difference between B<string>s and B<blob>s is that blobs are aligned at 16 bytes and are therefore suitable for maintaining message alignment across nested qstructs.
 
-Strings and blobs are both considered arbitrary sequences of bytes and neither type enforces any character encoding. I don't believe it is necessary for (or even the place of) a serialisation format to dictate encoding policies. Of course you are free to enforce/assume a common encoding for all of I<your> messages.
+Strings and blobs are both considered arbitrary sequences of bytes and neither type enforces any character encoding. I don't believe it is necessary for (or even the place of) a serialisation format to dictate encoding policies. Of course you are free to enforce a common encoding for all of I<your> messages. Qstruct may eventually have an C<:encoding> field modifer that directs implementations to enforce encodings.
 
 Neither strings nor blobs are NUL-byte terminated. They may contain NUL-bytes in mid-sequence. Failure to use the associated sizes of strings or blobs is a serious bug in your code. In high-level languages such as perl you should never need to worry about this but you do need to be careful when using the L<libqstruct|https://github.com/hoytech/libqstruct> C API.
 
-Qstruct strings employ a space optimisation called B<tagged-sizes>. This is the only "clever" packing trick in the Qstruct format. Because the alignment of strings doesn't matter and because 64 bit sizes have loads of room to work with, string sizes are encoded specially. If the lower nibble of the first byte is zero then the whole 64-bit size is bit-shifted down 8 bits and is used as the size. If the lower nibble of the first byte was instead non-zero, this nibble is taken to be an inline length and the pointer is ignored. Instead, the string is located at the following byte and is free to use the remaining 7 bytes of the size and the 8 bytes of the following pointer. So, only strings of 15 (0xF) or fewer bytes can be size-tagged.
+Qstruct strings employ a space optimisation called B<tagged-sizes>. This is the only "clever" packing trick in the Qstruct format. Because the alignment of strings doesn't matter and because 64 bit sizes have loads of room to work with, string sizes are encoded specially. If the lower nibble of the first byte is zero then the whole 64-bit size is bit-shifted down 8 bits and is used as the size. If the lower nibble of the first byte was instead non-zero, this nibble is taken to be an inline length and the offset is ignored. Instead, the string is located at the following byte and is free to use the remaining 7 bytes of the size and 8 bytes of the offset. So, only strings of 15 (0xF) or fewer bytes can be stored in tagged-sizes.
 
 Blobs never use tagged-sizes because of their alignment requirements.
 
-Default: "" (empty string)
+Default: "" (empty string: size=0, pointer=NULL)
 
 Alignment: The pointers to strings/blobs are aligned at 8. String data is aligned at 1 (unaligned), blob data is aligned at 16.
-
 
 =back
 
@@ -195,21 +198,27 @@ As mentioned above, there are two different types of arrays: B<dynamic arrays> a
 
 =head2 DYNAMIC ARRAYS
 
-Dynamic arrays have empty bracketed array specifiers. Dynamic arrays can be of any type except for bool.
+Dynamic arrays have empty bracketed array specifiers.
+
+Dynamic arrays can be of any type except for bool.
 
 Examples:
 
     account_ids @0 uint64[];
     profile_pictures @1 blob[];
 
-Dynamic arrays are stored on the heap (except for tagged-size arrays). The size and offset of the array are stored adjacent in the body which consumes 16 bytes even for an empty array. Additionally, accessing them requires an indirection through the offset pointer. However, they are the most flexible type of arrays since they can contain 0 or more elements (up to available memory or address space limitations).
+Dynamic arrays are the most flexible type of arrays since they can contain 0 or more elements, up to available memory or address space limitations.
 
-In the same way as strings, dynamic arrays can be stored inside the adjacent size/pointer fields as long as their sizes and alignments are compatible. For example, dynamic C<int8>/C<uint8> arrays of up to length 15 can be stored in tagged-sizes. Similarly, up to 7 C<int16>/C<uint16>, 3 C<int32>/C<uint32>, or 1 C<int64/uint64> can be stored in the tagged-size.
+The size and offset of a dynamic array are stored in the body of a message, meaning dynamic arrays consume at least 16 bytes even when empty. Additionally, accessing them requires an indirection through the offset pointer.
+
+Dynamic arrays are typically stored on the heap. However, in the same way as strings, dynamic arrays can be stored as tagged-sizes inside the size/pointer fields as long as their sizes and alignments are compatible. For example, dynamic C<int8>/C<uint8> arrays of up to length 15 can be stored in tagged-sizes. Similarly, up to 7 C<int16>/C<uint16>, 3 C<int32>/C<uint32>, or 1 C<int64/uint64> can be stored in a tagged-size.
 
 
 =head2 FIXED ARRAYS
 
-Fixed arrays have a number inside their bracketed array specifier. Only numeric (ie integer or floating point) values may be specified in fixed arrays. Strings and blobs cannot be stored in fixed arrays (only dynamic arrays). bools can't be stored in array at all (although you can store your own bit-fields in integer, string, or blob types).
+Fixed arrays have numbers inside their bracketed array specifiers.
+
+Only numeric (ie integer or floating point) types values may be used in fixed arrays: Strings, blobs, and bools cannot be stored in fixed arrays.
 
 Examples:
 
@@ -275,7 +284,7 @@ There is a lot to think about for this so don't rely on this feature for securit
 
 L<Qstruct> - The perl module reference dynamic-implementation
 
-L<Qstruct::Compiler> - The perl module reference compiler-implementation
+L<Qstruct::Compiler> - The reference compiler implementation
 
 L<libqstruct|https://github.com/hoytech/libqstruct> - Shared C library
 

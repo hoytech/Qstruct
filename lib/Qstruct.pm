@@ -294,7 +294,7 @@ Qstruct - Qstruct perl interface
 
 =head1 DESCRIPTION
 
-B<Qstruct> is a binary serialisation format that requires data schemas and this is the dynamic-language reference implementation perl module.
+B<Qstruct> is a binary serialisation format that requires data schemas. This documentation describes the L<Qstruct> perl module which is the reference dynamic-language implementation.
 
 The specification for the qstruct format is documented here: L<Qstruct::Spec>.
 
@@ -314,23 +314,23 @@ As shown in the synopsis, fields can be accessed simply by calling their corresp
 
     my $name = $user->name;
 
-However, due to the semantics of return values in perl, the above line of code allocates new memory and copies the C<name> field into it which can be inefficient for two reasons:
+However, due to the semantics of return values in perl, the above line of code allocates new memory and copies the C<name> field into it. This is inefficient for two reasons:
 
-Firstly, copying takes time and this time is proportional to how large the data is. If it's really large and/or you only need to access a small part of it, then copying can be wasteful.
+Firstly, the process of copying takes time. This time is proportional to how large the data is. Often this copying is unnecessary and therefore an inefficient use of time.
 
-Secondly, zero-copy is efficient because it minimises the impact on your memory system. If you aren't copying the data, you aren't paging it in from disk, pulling it into your filesystem/CPU caches, pushing other things out, or exercising your CPU's translation lookaside buffer (TLB).
+Secondly, copying is inefficient because impacts your memory system. If you aren't copying the data, you aren't paging it in from disk, pulling it into your filesystem/CPU caches, pushing other things out, or exercising your CPU's translation lookaside buffer (TLB).
 
 Qstruct is always B<lazy> when it comes to memory access: It will only access the bare-minimum memory required to fulfill accessor requests.
 
-If you wish to avoid copying however, you need to pass an "output" scalar into the accessor method:
+If you wish to avoid copying however, you need to pass an "output scalar" into the accessor method:
 
     ## Field access (zero-copy)
 
     $user->name(my $name);
 
-Passing these "output" scalars into methods is a common theme throughtout the L<Qstruct> perl module.
+Passing these output scalars into methods to avoid copying is a common theme throughtout the L<Qstruct> perl module interface.
 
-This module is designed to work with modules like L<File::Map> which map files into perl strings without actually copying them into memory and also L<LMDB_File> which is a transactional in-process data-base that has zero-copy interfaces. With these modules you can have true zero-copy access to data in the filesystem from your high-level perl code just as conveniently as with most copying interfaces.
+This module is designed to work with modules like L<File::Map> which map files into perl strings without actually copying them into memory, and also with modules like L<LMDB_File> which interact with transactional in-process databases that support zero-copy. When combining Qstructs with these modules you can have true zero-copy access to a filesystem or database from your high-level perl code just as conveniently as with copying interfaces.
 
 For more information on zero-copy, see the L<Test::ZeroCopy> module and the C<t/zerocopy.t> test in this distribution that uses it.
 
@@ -343,20 +343,19 @@ When you call the accessor method on an array it returns a special overloaded ob
 
     my $first_email = $user->emails->[0];
 
-
-Because of the lazy-loading nature of Qstructs, none of the other elements will be accessed at all. If the message is in a memory-mapped file the other elements might never even get paged in to memory.
+Because of the lazy-loading nature of Qstructs, in the above code none of the other emails will be accessed at all. If the message is in a memory-mapped file the other emails might never even get paged in to memory (although emails are generally small enough that they can all be stored on the same page).
 
 Of course references can also be de-referenced and iterated over:
 
     ## Array iteration (copying)
 
     foreach my $email (@{ $user->emails }) {
-      print "email: $email\n";
+      print "Email: ", $email, "\n";
     }
 
-But C<Qstruct::ArrayRef> are actually special objects that have methods. The problem with the above approach is that while the elements are lazy-loaded, they are not zero-copy. In other words, for the elements it actually does decide to load, new memory is being allocated for them by perl and then they are being copied into it.
+The problem with the above approach is that while the elements are lazy-loaded, they are not zero-copy. In other words, for the elements iterated over, perl is allocating new memory for them and then they are being copied into it.
 
-L<Qstruct> provides another interface that avoids these copies, the C<get> method:
+In addition to acting as array refs, C<Qstruct::ArrayRef> objects are also special objects with additional methods. The C<get> method is similar to the random-access de-reference operation above except that you can pass an output scalar to it to get zero-copy behaviour:
 
     ## Array random access (zero-copy)
 
@@ -387,7 +386,7 @@ There is actually a short-cut C<foreach> method that simplifies the above patter
 
 =head1 RAW ARRAY ACCESS
 
-For the numeric types there are also raw accessors. For example, hash values are known-fixed lengths so it sometimes might make sense for them to be fixed arrays (see L<Qstruct::Spec> for details) which are inlined in the message body for efficiency. Such arrays are most likely best accessed with raw accessors:
+For the numeric types there are also raw accessors. For example, hash values are known-length values so it can make sense for them to be fixed arrays which are inlined in the message body for efficiency (see L<Qstruct::Spec> for details). Such arrays are most likely best accessed with raw accessors:
 
     ## Whole-array access (copying)
 
@@ -405,23 +404,23 @@ When encoding messages, you can simply pass in an appropriately sized string and
       sha256_hash => Digest::SHA::sha256("whatever"),
     });
 
-Dynamic arrays can also be accessed with the same raw accessors:
+Dynamic arrays can also be accessed with raw accessors:
 
-    $user->account_ids->raw(my $buffer_of_little_endian_uint64);
+    $user->account_ids->raw(my $buffer_of_little_endian_uint64s);
 
-Since C<account_ids> is of type C<uint64[]>, the above variable will be a buffer of C<N * 8> bytes where N is the (dynamic) number of account ids stored and 8 is the number of bytes in a C<uint64>.
+Since C<account_ids> is of type C<uint64[]>, the above variable will reference a buffer of C<N * 8> bytes where N is the number of account ids in the array and 8 is the number of bytes in a C<uint64>.
 
-    Dynamic arrays can be set with raw buffers in the same way as fixed arrays:
+Dynamic arrays can be set with raw buffers in the same way as can fixed arrays:
 
     my $msg = MyPkg::User->encode({
-      account_ids => $buffer_of_little_endian_uint64;
+      account_ids => $buffer_of_little_endian_uint64s;
     });
 
-If the length of C<$buffer_of_little_endian_uint64> is not divisible by C<8> then an exception will be thrown.
+When setting the above dynamic array, if the length of C<$buffer_of_little_endian_uint64s> is not divisible by C<8> then an exception will be thrown.
 
 Note that numeric values are stored in little-endian format so if you use raw accessors on arrays with elements of more than 2 byte sizes then you will need to C<pack> and C<unpack> them in order for your code to be portable.
 
-For most purposes, raw array access is unnecessary and you should use the normal array accessors described above.
+Because of this portability restriction, and because raw array access is usually unnecessary, you should prefer the normal array accessors described above over raw array access.
 
 
 =head1 EXCEPTIONS
@@ -449,7 +448,7 @@ Note that when fields aren't set, accessing them will I<not> throw exceptions. I
 
 This module uses the "slow" but portable accessors described in L<libqstruct|https://github.com/hoytech/libqstruct> meaning it should work on any machine regardless of byte order or alignment requirements. Despite the name, these accessors are not actually slow relative to the overhead of making a perl function or method call so there is little point in optimising them for the perl module.
 
-Because the perl module uses the slow and portable accessors, no matter what CPU you use you do not need to ensure that you load messages from aligned offsets. When using the C API, if you choose to compile with the non-portable accessors you should be aware that depending on your CPU you may have reliabilty or performance issues if you load messages from non-aligned offsets. However, modern intel x86-64 CPUs are perfectly suited for the "fast" interface and it can be used without sacrificing reliability or performance (even with non-aligned messages).
+Because the perl module uses the slow and portable accessors, no matter what CPU you use you do not need to worry about loading messages from aligned offsets. When using the C API, if you choose to compile with the non-portable accessors you should be aware that depending on your CPU you may have reliabilty or performance issues if you load messages from non-aligned offsets. However, modern intel x86-64 CPUs are perfectly suited for the "fast" interface and this interface can be used without sacrificing reliability or performance even with non-aligned messages.
 
 
 
@@ -457,7 +456,7 @@ Because the perl module uses the slow and portable accessors, no matter what CPU
 
 L<Qstruct::Spec> - The Qstruct design objectives and format specification
 
-L<Qstruct::Compiler> - The perl module reference compiler-implementation
+L<Qstruct::Compiler> - The reference compiler implementation
 
 L<Test::ZeroCopy> - More information on zero-copy and how it is tested for
 
@@ -502,4 +501,5 @@ canonicalisation, copy method
 fewer copies in encode method after final malloc
   ?? maybe it can steal the malloc buffer and be zerocopy
 vectored I/O builder for 0-copy/1-copy building
-optional :utf8 type modifier that enforces utf validation on encoding and decoding
+:encoding(utf8) type modifier that enforces character encodings on encoding and decoding
+:align type modifier
