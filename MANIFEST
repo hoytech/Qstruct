@@ -18,8 +18,9 @@ MANIFEST.SKIP
 perl_math_int64.c
 perl_math_int64.h
 Qstruct.xs
-t/comp.t
+t/malformed.t
 t/README
+t/roundtrip.t
 t/schema.t
 t/zerocopy.t
 typemap
