@@ -5,6 +5,7 @@ README.pod
 .gitignore
 .git/
 blib/
+lib/README.pod
 pm_to_blib
 MYMETA.*
 Qstruct.*tar[.]gz$
