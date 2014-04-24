@@ -44,9 +44,25 @@ run(
 
   schema => q{ a @0 string; },
 
-  data => "\x00"x8 . LEU64(16 + 16 + 20) . LEU64(20 << 8) . LEU64(32) . "Q"x19,
+  data => "\x00"x8 . LEU64(16 + 20) . LEU64(20 << 8) . LEU64(32) . "Q"x19,
 
   sanity_should_fail => 1,
+
+  cb => sub {
+    my ($obj, $name) = @_;
+
+    eval { $obj->a };
+    like($@, qr/malformed/i, "$name: accessor threw an exception");
+  },
+);
+
+
+run(
+  name => "string pointer points beyond message end",
+
+  schema => q{ a @0 string; },
+
+  data => "\x00"x8 . LEU64(16 + 20) . LEU64(20 << 8) . LEU64(33) . "Q"x20,
 
   cb => sub {
     my ($obj, $name) = @_;
