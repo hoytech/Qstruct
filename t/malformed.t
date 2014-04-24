@@ -14,6 +14,15 @@ sub LEU64 {
 
 
 run(
+  name => "truncated header",
+
+  data => "\x00"x15,
+
+  sanity_should_fail => 1,
+);
+
+
+run(
   name => "body size longer than msg",
 
   schema => q{ a @0 uint64; },
@@ -29,6 +38,27 @@ run(
 );
 
 
+
+run(
+  name => "under-length string",
+
+  schema => q{ a @0 string; },
+
+  data => "\x00"x8 . LEU64(16 + 16 + 20) . LEU64(20 << 8) . LEU64(32) . "Q"x19,
+
+  sanity_should_fail => 1,
+
+  cb => sub {
+    my ($obj, $name) = @_;
+
+    eval { $obj->a };
+    like($@, qr/malformed/i, "$name: accessor threw an exception");
+  },
+);
+
+
+
+
 sub run {
   my (%args) = @_;
 
@@ -42,5 +72,6 @@ sub run {
   ## This encapsulation break is to test the accessors even if the sanity check is bypassed somehow
   my $obj = bless { e => \$args{data}, }, 'TestSchema::Loader';
 
-  $args{cb}->($obj, $args{name});
+  $args{cb}->($obj, $args{name})
+    if $args{cb};
 }
