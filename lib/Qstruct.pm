@@ -486,7 +486,6 @@ TODO pre-cpan:
 Qstruct::Compiler
 !! make sure there are no integer overflows in the ragel parser
 !! make sure pointers always point forwards
-detect duplicate names in a qstruct
 
 tests:
   * malformed messages
