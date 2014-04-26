@@ -260,7 +260,7 @@ get_dyn_array(buf_sv, byte_offset, elem_size)
         rv = newAV();
         sv_2mortal((SV*)rv);
 
-        av_push(rv, newSViv(array_base - buf));
+        av_push(rv, newSViv(array_base - QSTRUCT_HEADER_SIZE - buf)); // FIXME: change this interface so we don't need QSTRUCT_HEADER_SIZE
         av_push(rv, newSViv(array_size / elem_size));
 
         RETVAL = rv;
