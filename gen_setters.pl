@@ -23,12 +23,13 @@ sub gen_setter {
   print <<END;
 
 void
-set_$real_type(self, byte_offset, value)
+set_$real_type(self, body_index, byte_offset, value)
         Qstruct_Builder self
-        size_t byte_offset
+        uint32_t body_index
+        uint32_t byte_offset
         $real_c_type value
     CODE:
-        if (qstruct_builder_set_$storage_type(self, byte_offset, *(($storage_c_type *)&value))) croak("out of memory");
+        if (qstruct_builder_set_$storage_type(self, body_index, byte_offset, *(($storage_c_type *)&value))) croak("out of memory");
 
 END
 

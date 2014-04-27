@@ -100,6 +100,7 @@ get_item(def_addr, item_index)
         hv_store(rh, "fixed_array_size", 16, newSVnv(item->fixed_array_size), 0);
         hv_store(rh, "byte_offset", 11, newSVnv(item->byte_offset), 0);
         hv_store(rh, "bit_offset", 10, newSVnv(item->bit_offset), 0);
+        hv_store(rh, "nested_type", 11, newSVpvn(item->nested_name, item->nested_name_len), 0);
 
         RETVAL = newRV((SV *)rh);
     OUTPUT:
@@ -131,7 +132,7 @@ sanity_check(buf_sv)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        RETVAL = !qstruct_sanity_check(buf, buf_size);
+        RETVAL = qstruct_sanity_check(buf, buf_size);
     OUTPUT:
         RETVAL
 
@@ -142,9 +143,10 @@ INCLUDE_COMMAND: $^X gen_getters.pl
 
 
 int
-get_bool(buf_sv, byte_offset, bit_offset)
+get_bool(buf_sv, body_index, byte_offset, bit_offset)
         SV *buf_sv
-        size_t byte_offset
+        uint32_t body_index
+        uint32_t byte_offset
         int bit_offset
     CODE:
         char *buf;
@@ -156,7 +158,7 @@ get_bool(buf_sv, byte_offset, bit_offset)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_get_bool(buf, buf_size, byte_offset, bit_offset, &output);
+        ret = qstruct_get_bool(buf, buf_size, body_index, byte_offset, bit_offset, &output);
 
         if (ret) croak("malformed qstruct");
 
@@ -166,9 +168,10 @@ get_bool(buf_sv, byte_offset, bit_offset)
 
 
 void
-get_string(buf_sv, byte_offset, output_sv, int allow_heap = 0)
+get_string(buf_sv, body_index, byte_offset, output_sv, int allow_heap = 0)
         SV *buf_sv
-        size_t byte_offset
+        uint32_t body_index
+        uint32_t byte_offset
         SV *output_sv
     CODE:
         char *buf, *output;
@@ -179,10 +182,9 @@ get_string(buf_sv, byte_offset, output_sv, int allow_heap = 0)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_get_pointer(buf, buf_size, byte_offset, &output, &output_size, 1, allow_heap);
+        ret = qstruct_get_pointer(buf, buf_size, body_index, byte_offset, &output, &output_size, 1, allow_heap);
 
-        if (ret == -2) croak("string too large for 32 bit machine");
-        if (ret) croak("malformed qstruct");
+        if (ret) croak("malformed qstruct (%d)", ret);
 
         SvUPGRADE(output_sv, SVt_PV);
 
@@ -202,9 +204,10 @@ get_string(buf_sv, byte_offset, output_sv, int allow_heap = 0)
 
 
 void
-get_raw_bytes(buf_sv, byte_offset, length, output_sv, int allow_heap = 0)
+get_raw_bytes(buf_sv, body_index, byte_offset, length, output_sv, int allow_heap = 0)
         SV *buf_sv
-        size_t byte_offset
+        uint32_t body_index
+        uint32_t byte_offset
         size_t length
         SV *output_sv
     CODE:
@@ -216,7 +219,7 @@ get_raw_bytes(buf_sv, byte_offset, length, output_sv, int allow_heap = 0)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_get_raw_bytes(buf, buf_size, byte_offset, length, &output, &output_size, allow_heap);
+        ret = qstruct_get_raw_bytes(buf, buf_size, body_index, byte_offset, length, &output, &output_size, allow_heap);
         if (ret) croak("malformed qstruct");
 
         SvUPGRADE(output_sv, SVt_PV);
@@ -238,9 +241,10 @@ get_raw_bytes(buf_sv, byte_offset, length, output_sv, int allow_heap = 0)
 
 
 AV *
-get_dyn_array(buf_sv, byte_offset, elem_size)
+get_dyn_array(buf_sv, body_index, byte_offset, elem_size)
         SV *buf_sv
-        size_t byte_offset
+        uint32_t body_index
+        uint32_t byte_offset
         size_t elem_size
     CODE:
         char *buf, *array_base;
@@ -252,7 +256,7 @@ get_dyn_array(buf_sv, byte_offset, elem_size)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_get_pointer(buf, buf_size, byte_offset, &array_base, &array_size, elem_size, 0);
+        ret = qstruct_get_pointer(buf, buf_size, body_index, byte_offset, &array_base, &array_size, elem_size, 0);
 
         if (ret == -2) croak("array too large for 32 bit machine");
         if (ret) croak("malformed qstruct");
@@ -273,11 +277,13 @@ MODULE = Qstruct         PACKAGE = Qstruct::Builder
 PROTOTYPES: ENABLE
 
 Qstruct_Builder
-new(package, body_size)
+new(package, magic_id, body_size, body_count)
         char *package
-        size_t body_size
+        uint64_t magic_id
+        uint32_t body_size
+        uint32_t body_count
     CODE:
-        RETVAL = qstruct_builder_new(body_size);
+        RETVAL = qstruct_builder_new(magic_id, body_size, body_count);
     OUTPUT:
         RETVAL
 
@@ -288,48 +294,53 @@ INCLUDE_COMMAND: $^X gen_setters.pl
 
 
 void
-set_bool(self, byte_offset, bit_offset, value)
+set_bool(self, body_index, byte_offset, bit_offset, value)
         Qstruct_Builder self
-        size_t byte_offset
+        uint32_t body_index
+        uint32_t byte_offset
         int bit_offset
         int value
     CODE:
-        if (qstruct_builder_set_bool(self, byte_offset, bit_offset, value)) croak("out of memory");
+        if (qstruct_builder_set_bool(self, body_index, byte_offset, bit_offset, value)) croak("out of memory");
 
 void
-set_string(self, byte_offset, value_sv, int alignment)
+set_string(self, body_index, byte_offset, value_sv, int alignment)
         Qstruct_Builder self
-        size_t byte_offset
+        uint32_t body_index
+        uint32_t byte_offset
         SV *value_sv
     CODE:
         char *value;
         size_t value_size;
+        int ret;
 
         if (!SvPOK(value_sv)) croak("value is not a string");
         value_size = SvCUR(value_sv);
         value = SvPV(value_sv, value_size);
 
-        if (qstruct_builder_set_pointer(self, byte_offset, value, value_size, alignment, NULL)) croak("out of memory");
+        if (ret = qstruct_builder_set_pointer(self, body_index, byte_offset, value, value_size, alignment, NULL)) croak("out of memory (%d)", ret);
 
 size_t
-set_array(self, byte_offset, size, alignment)
+set_array(self, body_index, byte_offset, size, alignment)
         Qstruct_Builder self
-        size_t byte_offset
+        uint32_t body_index
+        uint32_t byte_offset
         size_t size
         int alignment
     CODE:
         size_t data_start = 0;
 
-        if (qstruct_builder_set_pointer(self, byte_offset, NULL, size, alignment, &data_start)) croak("out of memory");
+        if (qstruct_builder_set_pointer(self, body_index, byte_offset, NULL, size, alignment, &data_start)) croak("out of memory");
 
         RETVAL = data_start;
     OUTPUT:
         RETVAL
 
 void
-set_raw_bytes(self, byte_offset, bytes)
+set_raw_bytes(self, body_index, byte_offset, bytes)
         Qstruct_Builder self
-        size_t byte_offset
+        uint32_t body_index
+        uint32_t byte_offset
         SV *bytes
     CODE:
         size_t bytes_size;
@@ -339,7 +350,7 @@ set_raw_bytes(self, byte_offset, bytes)
         bytes_size = SvCUR(bytes);
         bytesp = SvPV(bytes, bytes_size);
 
-        if (qstruct_builder_set_raw_bytes(self, byte_offset, bytesp, bytes_size)) croak("out of memory");
+        if (qstruct_builder_set_raw_bytes(self, body_index, byte_offset, bytesp, bytes_size)) croak("out of memory");
 
 
 

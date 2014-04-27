@@ -6,6 +6,10 @@ use Math::Int64;
 use Qstruct;
 
 
+sub LEU32 {
+  return pack("V", $_[0]);
+}
+
 sub LEU64 {
   ## This hack is because pack("Q") won't work on 32 bit perls
   ## and Math::Int64 doesn't have uint64_to_little()
@@ -27,7 +31,7 @@ run(
 
   schema => q{ a @0 uint64; },
 
-  data => "\x00"x8 . LEU64(1),
+  data => "\x00"x8 . LEU32(1) . LEU32(1),
 
   sanity_should_fail => 1,
 
@@ -44,7 +48,7 @@ run(
 
   schema => q{ a @0 string; },
 
-  data => "\x00"x8 . LEU64(16 + 20) . LEU64(20 << 8) . LEU64(32) . "Q"x19,
+  data => "\x00"x8 . LEU32(16 + 20) . LEU32(1) . LEU64(20 << 8) . LEU64(32) . "Q"x19,
 
   sanity_should_fail => 1,
 
@@ -62,7 +66,7 @@ run(
 
   schema => q{ a @0 string; },
 
-  data => "\x00"x8 . LEU64(16 + 20) . LEU64(20 << 8) . LEU64(33) . "Q"x20,
+  data => "\x00"x8 . LEU32(16 + 20) . LEU32(1) . LEU64(20 << 8) . LEU64(33) . "Q"x20,
 
   cb => sub {
     my ($obj, $name) = @_;
@@ -82,7 +86,7 @@ sub run {
 
   my $sanity_check_result = Qstruct::Runtime::sanity_check($args{data});
   is(!$args{sanity_should_fail},
-     !!$sanity_check_result,
+     !$sanity_check_result,
      "$args{name}: sanity check should " . ($args{sanity_should_fail} ? 'fail' : 'pass'));
 
   ## This encapsulation break is to test the accessors even if the sanity check is bypassed somehow

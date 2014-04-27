@@ -62,12 +62,12 @@ sub load_schema {
     my $body_size = $def->{body_size};
 
     _install_closure("$def->{name}::build", sub {
-      return bless { b => Qstruct::Builder->new($body_size), }, "$_[0]::Builder";
+      return bless { i => 0, b => Qstruct::Builder->new(0, $body_size, 1), }, "$_[0]::Builder";
     });
 
     _install_closure("$def->{name}::encode", sub {
       my $params = $_[1];
-      my $builder = bless { b => Qstruct::Builder->new($body_size), }, "$_[0]::Builder";
+      my $builder = bless { i => 0, b => Qstruct::Builder->new(0, $body_size, 1), }, "$_[0]::Builder";
       foreach my $key (keys %$params) {
         $builder->$key($params->{$key});
       }
@@ -75,8 +75,10 @@ sub load_schema {
     });
 
     _install_closure("$def->{name}::decode", sub {
-      Qstruct::Runtime::sanity_check($_[1]) || croak "malformed qstruct (too short)";
-      return bless { e => \$_[1], }, "$_[0]::Loader";
+      my $ret = Qstruct::Runtime::sanity_check($_[1]);
+      croak "malformed qstruct, sanity ($ret)"
+        if $ret;
+      return bless { i => 0, e => \$_[1], }, "$_[0]::Loader";
     });
 
     _install_closure("$def->{name}::Builder::encode", sub {
@@ -109,20 +111,21 @@ sub load_schema {
           my $alignment = $base_type == 1 ? 1 : 16;
           _install_closure($setter_name, sub {
             my $elems = scalar @{$_[1]};
-            my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * 16, 8);
+            my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $elems * 16, 8);
             for (my $i=0; $i<$elems; $i++) {
-              $_[0]->{b}->set_string($array_offset + ($i * 16), $_[1]->[$i], $alignment);
+              $_[0]->{b}->set_string($_[0]->{i}, $array_offset + ($i * 16), $_[1]->[$i], $alignment);
             }
             return $_[0];
           });
 
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
-            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($$buf, $byte_offset, 16) };
+            my $body_index = $_[0]->{i};
+            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($$buf, $body_index, $byte_offset, 16) };
             return Qstruct::ArrayRef->new($elems,
                              sub {
                                return undef if $_[0] >= $elems;
-                               Qstruct::Runtime::get_string($$buf, $array_base + ($_[0] * 16), exists $_[1] ? $_[1] : my $o, 1);
+                               Qstruct::Runtime::get_string($$buf, $body_index, $array_base + ($_[0] * 16), exists $_[1] ? $_[1] : my $o, 1);
                                return $o if !exists $_[1];
                              });
           });
@@ -130,29 +133,30 @@ sub load_schema {
           _install_closure($setter_name, sub {
             if (ref $_[1]) {
               my $elems = scalar @{$_[1]};
-              my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * $type_width, $type_width);
+              my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $elems * $type_width, $type_width);
               for (my $i=0; $i<$elems; $i++) {
-                $_[0]->{b}->$type_setter_method($array_offset + ($i * $type_width), $_[1]->[$i]);
+                $_[0]->{b}->$type_setter_method($_[0]->{i}, $array_offset + ($i * $type_width), $_[1]->[$i]);
               }
             } else {
               my $elems = int(length($_[1]) / $type_width);
               croak "$item->{name} is a dynamic array of $type_width-byte elements but you passed in a string with length not divisible by $type_width (" . length($_[1]) . ")"
                 if length($_[1]) != ($elems * $type_width);
-              my $array_offset = $_[0]->{b}->set_array($byte_offset, $elems * $type_width, $type_width);
-              $_[0]->{b}->set_raw_bytes($array_offset, $_[1]);
+              my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $elems * $type_width, $type_width);
+              $_[0]->{b}->set_raw_bytes($_[0]->{i}, $array_offset, $_[1]);
             }
             return $_[0];
           });
 
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
-            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($$buf, $byte_offset, $type_width) };
+            my $body_index = $_[0]->{i};
+            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($$buf, $body_index, $byte_offset, $type_width) };
             return Qstruct::ArrayRef->new($elems,
                              sub {
                                return undef if $_[0] >= $elems;
-                               return $type_getter_sub->($$buf, $array_base + ($_[0] * $type_width), 1);
+                               return $type_getter_sub->($$buf, $body_index, $array_base + ($_[0] * $type_width), 1);
                              }, sub {
-                               Qstruct::Runtime::get_raw_bytes($$buf, $array_base, $elems * $type_width, $_[0], 1);
+                               Qstruct::Runtime::get_raw_bytes($$buf, $body_index, $array_base, $elems * $type_width, $_[0], 1);
                              });
           });
         } else {
@@ -167,25 +171,26 @@ sub load_schema {
                 if $elems != $fixed_array_size;
 
               for (my $i=0; $i<$elems; $i++) {
-                $_[0]->{b}->$type_setter_method($byte_offset + ($i * $type_width), $_[1]->[$i]);
+                $_[0]->{b}->$type_setter_method($_[0]->{i}, $byte_offset + ($i * $type_width), $_[1]->[$i]);
               }
             } else {
               my $total_size = $fixed_array_size * $type_width;
               croak "$item->{name} is a fixed array of $total_size bytes but you provided " . length($_[1]) . " bytes"
                 if length($_[1]) != $total_size;
-              $_[0]->{b}->set_raw_bytes($byte_offset, $_[1]);
+              $_[0]->{b}->set_raw_bytes($_[0]->{i}, $byte_offset, $_[1]);
             }
             return $_[0];
           });
 
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
+            my $body_index = $_[0]->{i};
             return Qstruct::ArrayRef->new($fixed_array_size,
                              sub {
                                return undef if $_[0] >= $fixed_array_size;
-                               return $type_getter_sub->($$buf, $byte_offset + ($_[0] * $type_width), 1);
+                               return $type_getter_sub->($$buf, $body_index, $byte_offset + ($_[0] * $type_width), 1);
                              }, sub {
-                               Qstruct::Runtime::get_raw_bytes($$buf, $byte_offset, $fixed_array_size * $type_width, $_[0]);
+                               Qstruct::Runtime::get_raw_bytes($$buf, $body_index, $byte_offset, $fixed_array_size * $type_width, $_[0]);
                              });
           });
         } else {
@@ -195,31 +200,31 @@ sub load_schema {
         if ($base_type == 1 || $base_type == 2) { # string/blob
           my $alignment = $base_type == 1 ? 1 : 16;
           _install_closure($setter_name, sub {
-            $_[0]->{b}->set_string($byte_offset, $_[1], $alignment);
+            $_[0]->{b}->set_string($_[0]->{i}, $byte_offset, $_[1], $alignment);
             return $_[0];
           });
 
           _install_closure($getter_name, sub {
-            Qstruct::Runtime::get_string(${$_[0]->{e}}, $byte_offset, exists $_[1] ? $_[1] : my $o);
+            Qstruct::Runtime::get_string(${$_[0]->{e}}, $_[0]->{i}, $byte_offset, exists $_[1] ? $_[1] : my $o);
             return $o if !exists $_[1];
           });
         } elsif ($base_type == 3) { # bool
           _install_closure($setter_name, sub {
-            $_[0]->{b}->set_bool($byte_offset, $bit_offset, $_[1] ? 1 : 0);
+            $_[0]->{b}->set_bool($_[0]->{i}, $byte_offset, $bit_offset, $_[1] ? 1 : 0);
             return $_[0];
           });
 
           _install_closure($getter_name, sub {
-            Qstruct::Runtime::get_bool(${$_[0]->{e}}, $byte_offset, $bit_offset);
+            Qstruct::Runtime::get_bool(${$_[0]->{e}}, $_[0]->{i}, $byte_offset, $bit_offset);
           });
-        } elsif ($base_type >= 4 && $base_type <= 9) { # floats and inst
+        } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
           _install_closure($setter_name, sub {
-            $_[0]->{b}->$type_setter_method($byte_offset, $_[1]);
+            $_[0]->{b}->$type_setter_method($_[0]->{i}, $byte_offset, $_[1]);
             return $_[0];
           });
 
           _install_closure($getter_name, sub {
-            $type_getter_sub->(${$_[0]->{e}}, $byte_offset);
+            $type_getter_sub->(${$_[0]->{e}}, $_[0]->{i}, $byte_offset);
           });
         } else {
           croak "unknown type: $base_type/$type";
@@ -486,6 +491,7 @@ TODO pre-cpan:
 Qstruct::Compiler
 !! make sure there are no integer overflows in the ragel parser
 !! make sure pointers always point forwards
+QSTRUCT_ERRNO_ / qstruct_strerror() system
 
 tests:
   * malformed messages
