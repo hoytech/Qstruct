@@ -25,7 +25,19 @@ Qstruct::load_schema(q{
  *   a8 @9 bool;
  * a9 @10 bool;
 */
-  }
+  };
+
+Qstruct 
+Empty::Junk {
+		
+}
+
+          qstruct
+Rofl
+{
+  junk @0 Blah;
+  hi @1 Empty::Junk[];
+}
 });
 
 ok(1, 'parsed ok');
