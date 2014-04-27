@@ -92,6 +92,7 @@ sub load_schema {
       my $getter_name = "$def->{name}::Loader::$item->{name}";
 
       my $type = $item->{type};
+      my $nested_type = $item->{nested_type};
       my ($full_type_name, $type_width) = type_lookup($type);
       my $base_type = $type & 0xFFFF;
       my $fixed_array_size = $item->{fixed_array_size};
@@ -207,6 +208,22 @@ sub load_schema {
           _install_closure($getter_name, sub {
             Qstruct::Runtime::get_string(${$_[0]->{e}}, $_[0]->{i}, $byte_offset, exists $_[1] ? $_[1] : my $o);
             return $o if !exists $_[1];
+          });
+        } elsif ($base_type == 10) { # nested qstruct
+          my $alignment = 8; # FIXME: blobs should also align at 8
+          _install_closure($setter_name, sub {
+            my $nested_val = $nested_type->encode($_[1]);
+            $_[0]->{b}->set_string($_[0]->{i}, $byte_offset, $nested_val, $alignment);
+            return $_[0];
+          });
+
+          _install_closure($getter_name, sub {
+            my $nested_obj = bless { i => 0, e => \undef, }, "${nested_type}::Loader";
+            Qstruct::Runtime::get_string(${$_[0]->{e}}, $_[0]->{i}, $byte_offset, ${$nested_obj->{e}});
+            my $ret = Qstruct::Runtime::sanity_check(${$nested_obj->{e}});
+            croak "malformed qstruct, sanity ($ret)"
+              if $ret;
+            return $nested_obj;
           });
         } elsif ($base_type == 3) { # bool
           _install_closure($setter_name, sub {
