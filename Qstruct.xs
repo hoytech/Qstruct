@@ -138,6 +138,37 @@ sanity_check(buf_sv)
 
 
 
+AV *
+unpack_header(buf_sv)
+        SV *buf_sv
+    CODE:
+        char *buf;
+        size_t buf_size;
+        AV *rv;
+        uint64_t magic_id;
+        uint32_t body_size, body_count;
+        int ret;
+
+        if (!SvPOK(buf_sv)) croak("buf is not a string");
+        buf_size = SvCUR(buf_sv);
+        buf = SvPV(buf_sv, buf_size);
+
+        ret = qstruct_unpack_header(buf, buf_size, &magic_id, &body_size, &body_count);
+        if (ret) croak("unable to unpack header");
+
+        rv = newAV();
+        sv_2mortal((SV*)rv);
+
+        av_push(rv, newSViv(0)); // FIXME: magic id
+        av_push(rv, newSViv(body_size));
+        av_push(rv, newSViv(body_count));
+
+        RETVAL = rv;
+    OUTPUT:
+        RETVAL
+
+
+
 INCLUDE_COMMAND: $^X gen_getters.pl
 
 

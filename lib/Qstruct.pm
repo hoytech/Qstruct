@@ -67,10 +67,23 @@ sub load_schema {
 
     _install_closure("$def->{name}::encode", sub {
       my $params = $_[1];
-      my $builder = bless { i => 0, b => Qstruct::Builder->new(0, $body_size, 1), }, "$_[0]::Builder";
-      foreach my $key (keys %$params) {
-        $builder->$key($params->{$key});
+      my $elems = ref($params) eq 'HASH' ? 1 : scalar(@$params);
+
+      my $builder = bless { i => 0, b => Qstruct::Builder->new(0, $body_size, $elems), }, "$_[0]::Builder";
+
+      if (ref($params) eq 'HASH') {
+        foreach my $key (keys %$params) {
+          $builder->$key($params->{$key});
+        }
+      } else {
+        for my $i (0 .. ($elems-1)) {
+          $builder->{i} = $i;
+          foreach my $key (keys %{ $params->[$i] }) {
+            $builder->$key($params->[$i]->{$key});
+          }
+        }
       }
+
       return $builder->encode;
     });
 
@@ -128,6 +141,45 @@ sub load_schema {
                                return undef if $_[0] >= $elems;
                                Qstruct::Runtime::get_string($$buf, $body_index, $array_base + ($_[0] * 16), exists $_[1] ? $_[1] : my $o, 1);
                                return $o if !exists $_[1];
+                             }, sub {
+                               croak "raw accessors not supported for type $base_type/$type not supported";
+                             });
+          });
+        } elsif ($base_type == 10) { # nested qstruct
+          _install_closure($setter_name, sub {
+            my $nested_val = $nested_type->encode($_[1]);
+            $_[0]->{b}->set_string($_[0]->{i}, $byte_offset, $nested_val, 8);
+            return $_[0];
+          });
+
+          _install_closure($getter_name, sub {
+            my $buf = $_[0]->{e};
+            my $parent_i = $_[0]->{i};
+
+            my ($magic_id, $body_size, $elems);
+
+            {
+              my $nested_obj = bless { e => \undef, }, "${nested_type}::Loader";
+              Qstruct::Runtime::get_string($$buf, $_[0]->{i}, $byte_offset, ${$nested_obj->{e}});
+
+              ($magic_id, $body_size, $elems) = @{ Qstruct::Runtime::unpack_header(${$nested_obj->{e}}) };
+            }
+
+            return Qstruct::ArrayRef->new($elems,
+                             sub {
+                               return undef if $_[0] >= $elems;
+
+                               my $nested_obj = bless { i => $_[0], e => \undef, }, "${nested_type}::Loader";
+                               Qstruct::Runtime::get_string($$buf, $parent_i, $byte_offset, ${$nested_obj->{e}});
+
+                               my $ret = Qstruct::Runtime::sanity_check(${$nested_obj->{e}});
+                               croak "malformed qstruct, sanity ($ret)"
+                                 if $ret;
+
+                               $_[1] = $nested_obj;
+                               return $nested_obj;
+                             }, sub {
+                               croak "raw accessors not supported for type $base_type/$type not supported";
                              });
           });
         } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
@@ -509,8 +561,11 @@ Qstruct::Compiler
 !! make sure there are no integer overflows in the ragel parser
 !! make sure pointers always point forwards
 QSTRUCT_ERRNO_ / qstruct_strerror() system
+"zero-copy" encode (ie output param for encode methods)
+support "out-of-order" qstruct definitions (ie without needing forward declarations)
 
 tests:
+  * nested qstructs
   * malformed messages
   * schema evolution
   * when accessing body fields, if the body is too short it returns default values (and never reads into the heap)
