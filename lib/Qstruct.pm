@@ -159,7 +159,7 @@ sub load_schema {
             my ($magic_id, $body_size, $elems);
 
             {
-              my $nested_obj = bless { e => \undef, }, "${nested_type}::Loader";
+              my $nested_obj = bless { e => \'', }, "${nested_type}::Loader";
               Qstruct::Runtime::get_string($$buf, $_[0]->{i}, $byte_offset, ${$nested_obj->{e}});
 
               ($magic_id, $body_size, $elems) = @{ Qstruct::Runtime::unpack_header(${$nested_obj->{e}}) };
@@ -169,7 +169,7 @@ sub load_schema {
                              sub {
                                return undef if $_[0] >= $elems;
 
-                               my $nested_obj = bless { i => $_[0], e => \undef, }, "${nested_type}::Loader";
+                               my $nested_obj = bless { i => $_[0], e => \'', }, "${nested_type}::Loader";
                                Qstruct::Runtime::get_string($$buf, $parent_i, $byte_offset, ${$nested_obj->{e}});
 
                                my $ret = Qstruct::Runtime::sanity_check(${$nested_obj->{e}});
@@ -270,7 +270,7 @@ sub load_schema {
           });
 
           _install_closure($getter_name, sub {
-            my $nested_obj = bless { i => 0, e => \undef, }, "${nested_type}::Loader";
+            my $nested_obj = bless { i => 0, e => \'', }, "${nested_type}::Loader";
             Qstruct::Runtime::get_string(${$_[0]->{e}}, $_[0]->{i}, $byte_offset, ${$nested_obj->{e}});
             my $ret = Qstruct::Runtime::sanity_check(${$nested_obj->{e}});
             croak "malformed qstruct, sanity ($ret)"
@@ -321,7 +321,6 @@ Qstruct - Qstruct perl interface
 
     use Qstruct;
 
-    ## Parse and load schema
     Qstruct::load_schema(q{
       ## This is my schema
 
@@ -339,7 +338,6 @@ Qstruct - Qstruct perl interface
 
         emails @2 string[];
         account_ids @5 uint64[];
-
         phones @7 MyPkg::PhoneNumber[];
 
         sha256_hash @6 uint8[32];
@@ -367,6 +365,7 @@ Qstruct - Qstruct perl interface
     print "User id: " . $user->id . "\n";
     print "User name: " . $user->name . "\n";
     print "*** ADMIN ***\n" if $user->is_admin;
+    print "1st phone #: " . $user->phones->[0]->number . "\n";
 
     ## Zero-copy access to strings/blobs:
     $user->name(my $name);

@@ -10,7 +10,7 @@ eval {
 if ($@) {
   plan skip_all => "Test::ZeroCopy not installed";
 } else {
-  plan tests => 18;
+  plan tests => 21;
 }
 
 
@@ -26,7 +26,8 @@ Qstruct::load_schema(q{
   }
 
   qstruct MyObjWrapper {
-    obj @0 MyObj;
+    wobj @0 MyObj;
+    wobjs @1 MyObj[];
   }
 });
 
@@ -100,13 +101,25 @@ my $obj = MyObj->decode($enc);
 
 {
 
-my $enc = MyObjWrapper->encode({ obj => { str => "HELLO", } });
+my $enc = MyObjWrapper->encode({
+            wobj => { str => "HELLO", },
+            wobjs => [ { str => "what up"x20 }, { str => "asdf" }, ],
+          });
 
-my $obj = MyObj->decode($enc);
+my $obj = MyObjWrapper->decode($enc);
 
 {
-  $obj->str(my $val);
+  $obj->wobj->str(my $val);
   Test::ZeroCopy::is_zerocopy($val, $enc);
+}
+
+{
+  $obj->wobjs->[0]->str(my $val);
+  Test::ZeroCopy::is_zerocopy($val, $enc);
+  $obj->wobjs->foreach(sub {
+    $_[0]->str(my $val);
+    Test::ZeroCopy::is_zerocopy($val, $enc);
+  });
 }
 
 }
