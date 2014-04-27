@@ -30,7 +30,7 @@ C<Efficient>: Because there is no difference between in-memory versus wire forma
 
 The schema language is modeled after the Cap'n Proto schema language.
 
-A schema is a series of qstructs. Each qstruct contains 0 or more fields. Each field is 3 items: The name, the C<@> id, and the type specifier.
+A schema is a series of qstructs. Each qstruct contains 0 or more fields. Each field is 3 items: The name, the C<@> id, and the type specifier. Qstruct names must start with upper-case letters and item names must start with lower-case letters.
 
 Whitespace is insignificant. C and perl-style comments are supported.
 
@@ -42,6 +42,7 @@ Here is an example schema:
         name @2 string;
         email_addrs @3 string[]; # dynamic array (pointer-based)
         sha256_checksum @1 uint8[32]; # fixed array (inlined in body)
+        accounts @5 Account[]; # array of nested Account qstructs
       }
 
       qstruct Some::Package::Junk {
@@ -51,7 +52,7 @@ Here is an example schema:
       }
 
 
-=head1 TYPES
+=head1 PRIMITIVE TYPES
 
 =over 4
 
@@ -113,23 +114,29 @@ A message is a block of data representing a Qstruct. It is either in the process
 
 The message data should be considered a binary blob. It may contain NUL bytes so its length must be stored separately (ie, you can't count on a terminating NUL).
 
-Messages can in theory be any size representable by an unsigned 64 bit number. However, on 32-bit machines some messages are too large to access and attempting to build or load/access these messages will throw exceptions.
+Messages can in theory be any size representable by an unsigned 64 bit number. However, on 32-bit machines some messages are too large to access and attempting to build or load/access these messages will throw exceptions. There are other size constraints as well: Arrays of qstructs can't contain more than C<2**32 - 1> elements, and qstruct bodies can't be more than C<2**32 - 1> bytes large.
 
 Messages are not self-delimiting so when transmitting or storing they need to be framed in some fashion. For example, when sending across a socket you might choose to send an 8-byte little-endian integer before the message data to indicate the size of the message that follows. When you apply framing be aware that it may impact data alignment at the receiving end (which is OK except that misaligned messages may slightly degrade performance on some machines).
 
 
 =head2 HEADER
 
-All Qstructs start with a 16 byte C<header>. The first 8 bytes are reserved for future extensions such as schema versioning and should always be 0s. The next 8 bytes represent a little-endian unsigned 64-bit integer that indicates how large the following B<body> structure is (the body is always shorter than the total message size because it doesn't include the header or the B<heap>).
+All Qstructs start with a 16 byte C<header>:
 
-    00000000  00 00 00 00 00 00 00 00  15 2f 00 00 00 00 00 00
-              |--reserved (all 0s)--|  |body size (LE uint64)|
+    00000000  00 00 00 00 00 00 00 00  15 2f 00 00 01 00 00 00
+              |-------magic id------|  |body size| |body count|
+
+The first 8 bytes are the B<magic id> of the qstruct type (by default all 0s). The magic id is useful for dynamic typing and schema versioning.
+
+The next 4 bytes represent a little-endian unsigned 32-bit integer that indicates the C<body size> of the message. Different schema versions of the same qstruct (ie ones with more/fewer C<@> ids) may have different body sizes.
+
+The following 4 bytes represent a little-endian unsigned 32-bit integer that indicates the C<body count>. This is the number of bodies present in the message. The root qstruct will typically have a body count of 1, as will nested qstructs. Arrays of nested qstructs will have a body count of 0 or more.
 
 
 
-=head2 BODY
+=head2 CONTENT
 
-The body immediately follows the header. Its exact layout depends on the schema. For example, consider the following schema:
+The B<content> immediately follows the header. Its exact layout depends on the schema. For example, consider the following schema:
 
     qstruct User {
       id @0 uint64;
@@ -141,7 +148,7 @@ The body immediately follows the header. Its exact layout depends on the schema.
 Suppose we create a message with the following data:
 
     my $user = User->build;
-    $user->name("hello world!");
+    $user->name("hello world!")
          ->id(100)
          ->is_admin(1)
          ->is_locked(1);
@@ -149,15 +156,18 @@ Suppose we create a message with the following data:
 
 Here is the hexdump of the resulting message:
 
-    00000000  00 00 00 00 00 00 00 00  20 00 00 00 00 00 00 00  |................|
+    00000000  00 00 00 00 00 00 00 00  20 00 00 00 01 00 00 00  |........ .......|
+
               |---------------------header-------------------|
 
     00000010  64 00 00 00 00 00 00 00  03 00 00 00 00 00 00 00  |d...............|
+
               |--------id (@0)------|  || |----free space----|
                                        ||
                                        |->is_admin|is_locked (@1|@3)
 
     00000020  0c 68 65 6c 6c 6f 20 77  6f 72 6c 64 21 00 00 00  |.hello world!...|
+
               || |--------inline string data--------| |--pad-|
               ||
               |-> name (@2) tag byte indicating length of inline string
@@ -165,7 +175,9 @@ Here is the hexdump of the resulting message:
 
 When computing the offsets, the Qstruct compiler will always try to find the first location in the message that a data type will fit into while still respecting the alignment preference of the data type. The algorithm is equivalent to a B<first-fit> memory allocator.
 
-The body size needs to be stored in the header because the size of the body will change depending on the version of the schema. If a field that has an end offset beyond the message body is accessed, a default value is returned (see the types section).
+In the case of arrays of nested qstructs, multiple B<bodies> will be stored adjacent in the content as determined by the C<body_size> and C<body_count> values from the header. There may be padding between bodies to maintain alignments. Qstruct bodies can't be more than C<2**32 - 1> bytes large.
+
+The body size needs to be stored in the header because the size of the body will change depending on the version of the schema. If a field that has an end offset beyond a body's bounds is accessed, a default value is returned (see the types section).
 
 
 =head2 HEAP
@@ -174,20 +186,20 @@ When a tagged size cannot be used because of a string exceeding 15 bytes in leng
 
 Heap locations are referenced by "pointers" which are actually offsets from the beginning of the header in bytes. For example, given the schema from the previous section, if the name is instead C<too long for tagged size> then it must be stored in the heap: 
 
-    HDR:  00000000  00 00 00 00 00 00 00 00  20 00 00 00 00 00 00 00  |........ .......|
-    BODY: 00000010  64 00 00 00 00 00 00 00  03 00 00 00 00 00 00 00  |d...............|
-    BODY: 00000020  00 18 00 00 00 00 00 00  30 00 00 00 00 00 00 00  |........0.......|
+    HDR:  00000000  00 00 00 00 00 00 00 00  20 00 00 00 01 00 00 00  |........ .......|
+    CONT: 00000010  64 00 00 00 00 00 00 00  03 00 00 00 00 00 00 00  |d...............|
+    CONT: 00000020  00 18 00 00 00 00 00 00  30 00 00 00 00 00 00 00  |........0.......|
                     |-------size << 8-----|  |----start offset-----|
     HEAP: 00000030  74 6f 6f 20 6c 6f 6e 67  20 66 6f 72 20 74 61 67  |too long for tag|
     HEAP: 00000040  67 65 64 20 73 69 7a 65                           |ged size|
 
 The heap is also used for dynamic arrays. In contrast to fixed-size inline arrays which are allocated in the body, dynamic arrays point to a variable number of sequential elements in the heap.
 
-In the case of dynamic arrays of strings or blobs the heap may contain additional pointers which refer to the string or blob contents.
+In the case of dynamic arrays of strings, blobs, or nested qstructs, the heap may contain additional pointers which refer to the string, blob, or message contents.
 
-Pointers must always point forwards (ie be larger than the offset of the pointer itself).
+Qstruct messages are designed to be traversed without recursion or looping so there is nothing to configure with respect to stack overflows or cyclic data-structures.
 
-Because there is no first-class support for nested or linked data-types, the maximum pointer traversal depth is 2 (dynamic arrays of strings/blobs).
+Pointers must always point forwards (ie be larger than the offset of the pointer's offset). In a single operation, the maximum pointer traversal depth is 2 (the case of accessing an element from a dynamic array). If the contents is a nested qstruct, you may choose to traverse its pointers too, but that is up to you.
 
 
 
@@ -206,12 +218,15 @@ Examples:
 
     account_ids @0 uint64[];
     profile_pictures @1 blob[];
+    comments @2 MyApp::Comment[];
 
 Dynamic arrays are the most flexible type of arrays since they can contain 0 or more elements, up to available memory or address space limitations.
 
 The size and offset of a dynamic array are stored in the body of a message, meaning dynamic arrays consume at least 16 bytes even when empty. Additionally, accessing them requires an indirection through the offset pointer.
 
 Dynamic arrays are typically stored on the heap. However, in the same way as strings, dynamic arrays can be stored as tagged-sizes inside the size/pointer fields as long as their sizes and alignments are compatible. For example, dynamic C<int8>/C<uint8> arrays of up to length 15 can be stored in tagged-sizes. Similarly, up to 7 C<int16>/C<uint16>, 3 C<int32>/C<uint32>, or 1 C<int64/uint64> can be stored in a tagged-size.
+
+Arrays of qstructs can't contain more than C<2**32 - 1> elements.
 
 
 =head2 FIXED ARRAYS
@@ -239,6 +254,8 @@ You can change the name of any field as long as you don't change the C<@> id.
 
 The order of the fields in a struct are irrelevant -- only the types and C<@> ids influence the packing order.
 
+You can change a dynamic array of a primitive type into a dynamic array of a qstruct providing that the qstruct has an element of the primitive type as its C<@> id.
+
 You can change the signedness of integer types as long as you are OK with effectively re-casting the data (ie negative ints become large positive ints or large positive ints become negative ints).
 
 You can change a blob to a string (though this impacts canonicalisation) but you can't change a string to a blob (due to alignment).
@@ -254,7 +271,7 @@ Do not process schemas from potentially malicious sources. There are trivial mem
 
 If you use the wrong schema or if the message has been corrupted by a malicious attacker then there should be no possibility of a segfault or reading/writing out of bounds. However, the message data will be garbage (but of course malicious messages can encode garbage data anyway).
 
-When loading or accessing a message there should be no way to make this module consume any more memory than you explicitly copy out of it (see the zero copy section). In any one operation this will be at most the size of the message. With zero-copy accessors none of the message data is copied at all.
+When loading or accessing a message there should be no way to make this module consume any more memory than you explicitly copy out of it. In any one operation this will be at most the size of the message. With zero-copy accessors none of the message data is copied at all.
 
 Unlike Cap'n Proto, the simplistic nature of the Qstruct format does not provide list-like/tree-like/nested data-structures so there is nothing to configure in the Qstruct implementation to prevent stack overflows, cycles, or recursion.
 

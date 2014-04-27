@@ -372,7 +372,7 @@ Qstruct - Qstruct perl interface
 
     ## Zero-copy array iteration:
     $user->emails->foreach(sub {
-      print "EMAIL is $_[0]\n";
+      print "EMAIL is ", $_[0], "\n";
     });
 
     ## Zero-copy nested qstructs:
@@ -390,7 +390,7 @@ The specification for the qstruct format is documented here: L<Qstruct::Spec>.
 
 Because in qstructs the "wire" and "in-memory" formats are the same, the C<encode> and C<decode> functions are somewhat mis-named. As soon as the object is built in memory, it is ready to be copied out to disk or the network, and as soon as it is read or mapped into memory it is ready for accessing so C<encode> and C<decode> are mostly no-ops.
 
-This module is designed to be particularly efficient for reading qstructs. Strings, blobs, and arrays can all be randomly-accessed or iterated over without reading or parsing any unrelated parts of the message (laziness). Furthermore, all copies of message data can be avoided -- only pointers into the message memory are recorded (zero-copy).
+This module is designed to be particularly efficient for reading qstructs. Strings, blobs, nested qstructs, and arrays of such can all be randomly-accessed or iterated over without reading or parsing any unrelated parts of the message (B<laziness>). Furthermore, all copies of message data can be avoided -- only pointers into the message memory are recorded (B<zero-copy>).
 
 The encoder in this module is not exactly slow, it just does more memory-allocations and copying than an optimised implementation would. The compiled static interface will probably be optimised for encoding eventually.
 
@@ -408,9 +408,9 @@ However, due to the semantics of return values in perl, the above line of code a
 
 Firstly, the process of copying takes time. This time is proportional to how large the data is. Often this copying is unnecessary and therefore an inefficient use of time.
 
-Secondly, copying is inefficient because impacts your memory system. If you aren't copying the data, you aren't paging it in from disk, pulling it into your filesystem/CPU caches, pushing other things out, or exercising your CPU's translation lookaside buffer (TLB).
+Secondly, copying is inefficient because impacts your memory system. If you aren't copying the data, you aren't paging it in from disk, pulling it into your filesystem/CPU caches, pushing other things out of cache, or exercising your CPU's translation lookaside buffer (TLB).
 
-Qstruct is always B<lazy> when it comes to memory access: It will only access the bare-minimum memory required to fulfill accessor requests.
+Qstruct is always lazy when it comes to memory access: It will only access the bare-minimum memory required to fulfill accessor requests.
 
 If you wish to avoid copying however, you need to pass an "output scalar" into the accessor method:
 
@@ -433,7 +433,7 @@ When you call the accessor method on an array it returns a special overloaded ob
 
     my $first_email = $user->emails->[0];
 
-Because of the lazy-loading nature of Qstructs, in the above code none of the other emails will be accessed at all. If the message is in a memory-mapped file the other emails might never even get paged in to memory (although emails are generally small enough that they can all be stored on the same page).
+Because of the lazy-loading nature of Qstructs, in the above code none of the other emails will be accessed at all. If the message is in a memory-mapped file the other emails might never even get paged in to memory (although emails are generally small enough that they many of them can be stored together on the same page).
 
 Of course references can also be de-referenced and iterated over:
 
@@ -464,7 +464,7 @@ There is also a C<len> method which of course means you can iterate over arrays:
       print "Email: ", $email, "\n";
     }
 
-There is actually a short-cut C<foreach> method that simplifies the above pattern:
+There is a short-cut C<foreach> method that simplifies the above pattern:
 
     ## Array iteration short-cut (zero-copy)
 
@@ -472,11 +472,20 @@ There is actually a short-cut C<foreach> method that simplifies the above patter
       print "Email: ", $_[0], "\n";
     });
 
+Arrays of qstructs work essentially the same as arrays of primitive types except that the elements are decoded objects convenient for traversal, ie:
+
+    ## Arrays of qstructs
+    $department->staff->employees->foreach(sub {
+      my $employee = shift;
+      print "Employee id: ", $employee->id, "\n";
+      print "Employee name: ", $employee->name, "\n";
+    });
+
 
 
 =head1 RAW ARRAY ACCESS
 
-For the numeric types there are also raw accessors. For example, hash values are known-length values so it can make sense for them to be fixed arrays which are inlined in the message body for efficiency (see L<Qstruct::Spec> for details). Such arrays are most likely best accessed with raw accessors:
+For numeric types there are also raw accessors. For example, hash values are known-length values so it can make sense for them to be fixed arrays which are inlined in the message body for efficiency (see L<Qstruct::Spec> for details). Such arrays are most likely best accessed with raw accessors:
 
     ## Whole-array access (copying)
 
@@ -531,7 +540,7 @@ This module will throw exceptions in the following conditions:
 
     * Attempting to modify a Qstruct::Array
 
-Note that when fields aren't set, accessing them will I<not> throw exceptions. Instead, it will return the default values of their respective types (see L<Qstruct::Spec>). This is even true of old messages that were created with old versions of the schema before the field was defined.
+Note that when fields aren't set, accessing them will I<not> throw exceptions. Instead, it will return the default values of their respective types (see L<Qstruct::Spec>). This is so that you can still parse old messages that were created with old versions of a schema.
 
 
 =head1 PORTABILITY
@@ -576,9 +585,8 @@ TODO pre-cpan:
 Qstruct::Compiler
 !! make sure there are no integer overflows in the ragel parser
 !! make sure pointers always point forwards
-QSTRUCT_ERRNO_ / qstruct_strerror() system
-"zero-copy" encode (ie output param for encode methods)
-support "out-of-order" qstruct definitions (ie without needing forward declarations)
+QSTRUCT_ERRNO_* / qstruct_strerror() system
+?? get rid of blobs
 
 tests:
   * nested qstructs
@@ -590,6 +598,8 @@ tests:
 
 TODO long-term:
 
+"zero-copy" encode (ie output param for encode methods)
+support "out-of-order" qstruct definitions (ie without needing forward declarations)
 canonicalisation, copy method
 fewer copies in encode method after final malloc
   ?? maybe it can steal the malloc buffer and be zerocopy
