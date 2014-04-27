@@ -325,6 +325,11 @@ Qstruct - Qstruct perl interface
     Qstruct::load_schema(q{
       ## This is my schema
 
+      qstruct MyPkg::PhoneNumber {
+        number @0 string;
+        ext @1 uint8;
+      }
+
       qstruct MyPkg::User {
         id @0 uint64;
         name @1 string;
@@ -334,6 +339,8 @@ Qstruct - Qstruct perl interface
 
         emails @2 string[];
         account_ids @5 uint64[];
+
+        phones @7 MyPkg::PhoneNumber[];
 
         sha256_hash @6 uint8[32];
       }
@@ -345,8 +352,12 @@ Qstruct - Qstruct perl interface
                     name => "jimmy",
                     id => 100,
                     is_admin => 1,
-                    emails => ['jimmy@example.com', 'jim@jimmy.com'],
+                    emails => [ 'jimmy@example.com', 'jim@jimmy.com' ],
                     sha256_hash => "\xFF"x32,
+                    phones => [
+                                { number => '555-1212' },
+                                { number => '1234567', ext => 2 },
+                              ],
                   });
 
     ## Load a user message:
@@ -363,6 +374,12 @@ Qstruct - Qstruct perl interface
     ## Zero-copy array iteration:
     $user->emails->foreach(sub {
       print "EMAIL is $_[0]\n";
+    });
+
+    ## Zero-copy nested qstructs:
+    $user->phones->foreach(sub {
+      $_[0]->number(my $number);
+      print $number, "\n";
     });
 
 
