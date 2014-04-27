@@ -384,13 +384,11 @@ Qstruct - Qstruct perl interface
 
 =head1 DESCRIPTION
 
-B<Qstruct> is a binary serialisation format that requires data schemas. This documentation describes the L<Qstruct> perl module which is the reference dynamic-language implementation.
+B<Qstruct> is a binary serialisation format that requires a schema. This documentation describes the L<Qstruct> perl module which is the reference dynamic-language implementation for qstructs. The specification for the qstruct format is documented here: L<Qstruct::Spec>.
 
-The specification for the qstruct format is documented here: L<Qstruct::Spec>.
+Because in qstructs the "wire" and "in-memory" formats are the same, the C<encode> and C<decode> functions are somewhat mis-named. As soon as the object is built in memory it is ready to be copied out to disk or the network. Also, as soon as it is read or mapped into memory it is ready for accessing. So the C<encode> and C<decode> operations are mostly no-ops.
 
-Because in qstructs the "wire" and "in-memory" formats are the same, the C<encode> and C<decode> functions are somewhat mis-named. As soon as the object is built in memory, it is ready to be copied out to disk or the network, and as soon as it is read or mapped into memory it is ready for accessing so C<encode> and C<decode> are mostly no-ops.
-
-This module is designed to be particularly efficient for reading qstructs. Strings, blobs, nested qstructs, and arrays of such can all be randomly-accessed or iterated over without reading or parsing any unrelated parts of the message (B<laziness>). Furthermore, all copies of message data can be avoided -- only pointers into the message memory are recorded (B<zero-copy>).
+This module is designed to be particularly efficient for reading qstructs. Numerics, strings, blobs, nested qstructs, and arrays of these types can all be randomly-accessed or iterated over without reading or parsing any unrelated parts of the message (qstructs are B<lazy>). Furthermore, all copies of message data can be avoided -- only pointers into the message memory are recorded (qstructs are B<zero-copy>).
 
 The encoder in this module is not exactly slow, it just does more memory-allocations and copying than an optimised implementation would. The compiled static interface will probably be optimised for encoding eventually.
 
@@ -404,7 +402,7 @@ As shown in the synopsis, fields can be accessed simply by calling their corresp
 
     my $name = $user->name;
 
-However, due to the semantics of return values in perl, the above line of code allocates new memory and copies the C<name> field into it. This is inefficient for two reasons:
+However, due to the semantics of return values in perl, the above line of code allocates new memory and copies the C<name> field into it. This is inefficient for two reasons.
 
 Firstly, the process of copying takes time. This time is proportional to how large the data is. Often this copying is unnecessary and therefore an inefficient use of time.
 
@@ -433,7 +431,7 @@ When you call the accessor method on an array it returns a special overloaded ob
 
     my $first_email = $user->emails->[0];
 
-Because of the lazy-loading nature of Qstructs, in the above code none of the other emails will be accessed at all. If the message is in a memory-mapped file the other emails might never even get paged in to memory (although emails are generally small enough that they many of them can be stored together on the same page).
+Because of the lazy-loading nature of Qstructs, in the above code none of the other emails are accessed at all. If the message is in a memory-mapped file, the other emails might never even get paged in to memory (although emails are generally small enough that they many of them can be stored together on the same page).
 
 Of course references can also be de-referenced and iterated over:
 
@@ -509,6 +507,8 @@ Dynamic arrays can also be accessed with raw accessors:
 
 Since C<account_ids> is of type C<uint64[]>, the above variable will reference a buffer of C<N * 8> bytes where N is the number of account ids in the array and 8 is the number of bytes in a C<uint64>.
 
+Note also that numeric values are stored in little-endian format so if you use raw accessors on arrays with elements of more than 2 byte sizes then you will need to C<pack> and C<unpack> them in order for your code to be portable.
+
 Dynamic arrays can be set with raw buffers in the same way as can fixed arrays:
 
     my $msg = MyPkg::User->encode({
@@ -517,9 +517,7 @@ Dynamic arrays can be set with raw buffers in the same way as can fixed arrays:
 
 When setting the above dynamic array, if the length of C<$buffer_of_little_endian_uint64s> is not divisible by C<8> then an exception will be thrown.
 
-Note that numeric values are stored in little-endian format so if you use raw accessors on arrays with elements of more than 2 byte sizes then you will need to C<pack> and C<unpack> them in order for your code to be portable.
-
-Because of this portability restriction, and because raw array access is usually unnecessary, you should prefer the normal array accessors described above over raw array access.
+Because of the portability and evolution restrictions, raw array access is usually unnecessary and you should prefer dynamic over raw array access.
 
 
 =head1 EXCEPTIONS
@@ -528,26 +526,26 @@ This module will throw exceptions in the following conditions:
 
     * Schema parse errors
 
+    * Decoding or accessing truncated/malformed qstructs
+
     * Out of memory during encoding
 
     * You are on a 32-bit system and you attempt to access
       a field that can't fit in your address space
-
-    * Accessing truncated/malformed qstructs
 
     * Trying to set an array from a raw buffer that is the
       incorrect size
 
     * Attempting to modify a Qstruct::Array
 
-Note that when fields aren't set, accessing them will I<not> throw exceptions. Instead, it will return the default values of their respective types (see L<Qstruct::Spec>). This is so that you can still parse old messages that were created with old versions of a schema.
+Note that if fields aren't set, accessing them will I<not> throw exceptions. Instead, accessors will return the default values of their respective types (see L<Qstruct::Spec>). This is so that you can still parse old messages that were created with old versions of a schema.
 
 
 =head1 PORTABILITY
 
 This module uses the "slow" but portable accessors described in L<libqstruct|https://github.com/hoytech/libqstruct> meaning it should work on any machine regardless of byte order or alignment requirements. Despite the name, these accessors are not actually slow relative to the overhead of making a perl function or method call so there is little point in optimising them for the perl module.
 
-Because the perl module uses the slow and portable accessors, no matter what CPU you use you do not need to worry about loading messages from aligned offsets. When using the C API, if you choose to compile with the non-portable accessors you should be aware that depending on your CPU you may have reliabilty or performance issues if you load messages from non-aligned offsets. However, modern intel x86-64 CPUs are perfectly suited for the "fast" interface and this interface can be used without sacrificing reliability or performance even with non-aligned messages.
+Because the perl module uses the slow and portable accessors, no matter what CPU you use you do not need to worry about loading messages from aligned offsets. When using the C API, if you choose to compile with the non-portable accessors you should be aware that depending on your CPU you may have reliabilty or performance issues if you load messages from non-aligned offsets. However, modern x86-64 CPUs are perfectly suited for the "fast" interface and this interface can be used without sacrificing reliability or performance even with non-aligned messages.
 
 
 
@@ -582,29 +580,35 @@ The bundled C<libqstruct> is (C) Doug Hoyte and licensed under the 2-clause BSD 
 
 TODO pre-cpan:
 
-Qstruct::Compiler
 !! make sure there are no integer overflows in the ragel parser
 !! make sure pointers always point forwards
-QSTRUCT_ERRNO_* / qstruct_strerror() system
-?? get rid of blobs
 
 tests:
   * nested qstructs
+    * empty lists
   * schema evolution
+    * dyn-array of primitives -> dyn-array of nested qstructs (need to leave room in prim arrays?)
+  * make encoded string go out-of-scope, read from zero-copy accessor, make sure it wasn't garbage collected
   * malformed messages
+    * backwards pointers
     * when accessing body fields, if the body is too short it returns default values (and never reads into the heap)
+
+QSTRUCT_ERRNO_* / qstruct_strerror() system
+?? get rid of blobs
 
 
 TODO long-term:
 
+!! support "out-of-order" qstruct definitions (ie without needing forward declarations)
+!! Qstruct::Compiler
+
 tests:
   * bit-manipulation fuzzer (run in valgrind/-fsanitize=address)
 
-"zero-copy" encode (ie output param for encode methods)
-support "out-of-order" qstruct definitions (ie without needing forward declarations)
 canonicalisation, copy method
+vectored I/O builder for 0-copy/1-copy building
+"zero-copy" encode (ie output param for encode methods)
 fewer copies in encode method after final malloc
   ?? maybe it can steal the malloc buffer and be zerocopy
-vectored I/O builder for 0-copy/1-copy building
-:encoding(utf8) type modifier that enforces character encodings on encoding and decoding
-:align type modifier
+?? :encoding(utf8) type modifier that enforces character encodings on encoding and decoding
+?? :align type modifier

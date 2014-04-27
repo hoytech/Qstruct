@@ -157,17 +157,14 @@ Suppose we create a message with the following data:
 Here is the hexdump of the resulting message:
 
     00000000  00 00 00 00 00 00 00 00  20 00 00 00 01 00 00 00  |........ .......|
-
               |---------------------header-------------------|
 
     00000010  64 00 00 00 00 00 00 00  03 00 00 00 00 00 00 00  |d...............|
-
               |--------id (@0)------|  || |----free space----|
                                        ||
                                        |->is_admin|is_locked (@1|@3)
 
     00000020  0c 68 65 6c 6c 6f 20 77  6f 72 6c 64 21 00 00 00  |.hello world!...|
-
               || |--------inline string data--------| |--pad-|
               ||
               |-> name (@2) tag byte indicating length of inline string
@@ -177,14 +174,14 @@ When computing the offsets, the Qstruct compiler will always try to find the fir
 
 In the case of arrays of nested qstructs, multiple B<bodies> will be stored adjacent in the content as determined by the C<body_size> and C<body_count> values from the header. There may be padding between bodies to maintain alignments. Qstruct bodies can't be more than C<2**32 - 1> bytes large.
 
-The body size needs to be stored in the header because the size of the body will change depending on the version of the schema. If a field that has an end offset beyond a body's bounds is accessed, a default value is returned (see the types section).
+The body size needs to be stored in the header because the size of the body will change depending on the version of the schema. If a field that has an end offset beyond a body's bounds is accessed, a default value is returned (see the types section for the list of default values).
 
 
 =head2 HEAP
 
 When a tagged size cannot be used because of a string exceeding 15 bytes in length or a type that prohibits it (ie blob or array), the value will be appended onto the B<heap>.
 
-Heap locations are referenced by "pointers" which are actually offsets from the beginning of the header in bytes. For example, given the schema from the previous section, if the name is instead C<too long for tagged size> then it must be stored in the heap: 
+Heap locations are referenced by "pointers" which are actually offsets from the beginning of the header in bytes. For example, given the schema from the previous section, if the name is instead C<"too long for tagged size"> then it must be stored in the heap: 
 
     HDR:  00000000  00 00 00 00 00 00 00 00  20 00 00 00 01 00 00 00  |........ .......|
     CONT: 00000010  64 00 00 00 00 00 00 00  03 00 00 00 00 00 00 00  |d...............|
@@ -193,13 +190,13 @@ Heap locations are referenced by "pointers" which are actually offsets from the 
     HEAP: 00000030  74 6f 6f 20 6c 6f 6e 67  20 66 6f 72 20 74 61 67  |too long for tag|
     HEAP: 00000040  67 65 64 20 73 69 7a 65                           |ged size|
 
-The heap is also used for dynamic arrays. In contrast to fixed-size inline arrays which are allocated in the body, dynamic arrays point to a variable number of sequential elements in the heap.
+The heap is also used for dynamic arrays. In contrast to fixed-size inline arrays which are allocated in the content, dynamic arrays point to a variable number of sequential elements in the heap.
 
 In the case of dynamic arrays of strings, blobs, or nested qstructs, the heap may contain additional pointers which refer to the string, blob, or message contents.
 
-Qstruct messages are designed to be traversed without recursion or looping so there is nothing to configure with respect to stack overflows or cyclic data-structures.
+Qstruct messages are designed to be traversable without recursion or looping so there is nothing to configure with respect to stack overflows or cyclic data-structures.
 
-Pointers must always point forwards (ie be larger than the offset of the pointer's offset). In a single operation, the maximum pointer traversal depth is 2 (the case of accessing an element from a dynamic array). If the contents is a nested qstruct, you may choose to traverse its pointers too, but that is up to you.
+Pointers must always point forwards (ie be larger than the offset of the pointer's offset). In a single operation, the maximum pointer traversal depth is 2 (the case of accessing an element from a dynamic array). If the contents is a nested qstruct or a blob with embedded pointers, you may choose to traverse the contained pointers also, but that is up to you.
 
 
 
@@ -233,30 +230,32 @@ Arrays of qstructs can't contain more than C<2**32 - 1> elements.
 
 Fixed arrays have numbers inside their bracketed array specifiers.
 
-Only numeric (ie integer or floating point) types values may be used in fixed arrays: Strings, blobs, and bools cannot be stored in fixed arrays.
+Only numeric (ie integer or floating point) types values may be used in fixed arrays: Strings, blobs, bools, and qstructs cannot be stored in fixed arrays.
 
 Examples:
 
-    rainfall_by_month @0 float[12];
-    sha256_checksum @1 uint8[32];
+    sha256_checksum @0 uint8[32];
+    rainfall_by_month @1 float[12];
 
-Fixed arrays are stored inline in the body of the message. Their size and offset from the start of the message is always known exactly so there is no need to store or use offset pointers or lengths. However, you can never change the size of the array so they should only be used when you are 100% certain that you will never want to expand, shrink, or remove this field.
+Fixed arrays are stored inline in the body of the message. Their size and offset from the start of the message is always known exactly so there is no need to store/compute offset pointers or lengths. However, you can never change the size of the array so they should only be used when you are 100% certain that you will never want to expand, shrink, or remove this field.
 
 
 
 =head1 SCHEMA EVOLUTION
 
-Comments can be added/removed anywhere in the schema. The qstruct definitions can be shuffled around in any order in the schema.
+Comments and extra whitespace can be added/removed anywhere in the schema.
 
-As long as you don't change existing fields' types or C<@> ids, you can always add new fields to a qstruct. Any messages that were created with the old schema will still be loadable. Accessing new fields in old messages will return default values.
+The qstruct definitions can be shuffled around in any order in the schema.
 
-You can change the name of any field as long as you don't change the C<@> id.
+You can add new fields to a qstruct as long as you don't change existing fields' types or C<@> ids and the C<@> ids are always repeating without gaps. Any messages that were created with the old schema will still be loadable: Accessing new fields in old messages will return default values.
 
-The order of the fields in a struct are irrelevant -- only the types and C<@> ids influence the packing order.
+You can change the name of any field as long as you don't change its C<@> id.
 
-You can change a dynamic array of a primitive type into a dynamic array of a qstruct providing that the qstruct has an element of the primitive type as its C<@> id.
+You can re-arrange the fields in a qstruct: only the types and C<@> ids influence the packing order.
 
-You can change the signedness of integer types as long as you are OK with effectively re-casting the data (ie negative ints become large positive ints or large positive ints become negative ints).
+You can change a dynamic array of a primitive type into a dynamic array of a qstruct providing that the qstruct has an element of the primitive type as its C<@0> id.
+
+You can change the signedness of integer types as long as you are OK with effectively re-casting the data (negative ints become large positive ints/large positive ints become negative ints).
 
 You can change a blob to a string (though this impacts canonicalisation) but you can't change a string to a blob (due to alignment).
 
@@ -292,9 +291,10 @@ There is a lot to think about for this so don't rely on this feature for securit
     * Make sure tagged-size optimisation is always applied when possible
     * Null out high bytes and high nibble in tagged-sizes
     * Fields and arrays of fields must always be at correct alignment
+    * Normalise floating point NaN representations (qNaN/sNan)
     * Ensure body is the right size for the current schema version
     * Ensure no extra padding on end of message
-    * Normalise floating point NaN representations (qNaN/sNan)
+    * Recursively canonicalise nested qstructs
 
 
 =head1 SEE ALSO
@@ -315,6 +315,6 @@ Doug Hoyte, C<< <doug@hcsw.org> >>
 
 Copyright 2014 Doug Hoyte.
 
-The specification can be redistributed/alternately rendered/remixed without restriction as long as all alterations are prominently described.
+This specification can be redistributed, alternately rendered, and otherwise remixed without restriction so long as all alterations are prominently described.
 
 All other rights reserved.
