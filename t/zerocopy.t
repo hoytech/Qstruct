@@ -10,7 +10,7 @@ eval {
 if ($@) {
   plan skip_all => "Test::ZeroCopy not installed";
 } else {
-  plan tests => 17;
+  plan tests => 18;
 }
 
 
@@ -24,7 +24,14 @@ Qstruct::load_schema(q{
     hash @5 uint8[32];
     ints @6 uint8[];
   }
+
+  qstruct MyObjWrapper {
+    obj @0 MyObj;
+  }
 });
+
+
+{
 
 my $enc = MyObj->build
             ->str("hello world")
@@ -84,4 +91,22 @@ my $obj = MyObj->decode($enc);
   $obj->strs->foreach(sub {
     Test::ZeroCopy::is_zerocopy($_[0], $enc);
   });
+}
+
+}
+
+
+### Nested
+
+{
+
+my $enc = MyObjWrapper->encode({ obj => { str => "HELLO", } });
+
+my $obj = MyObj->decode($enc);
+
+{
+  $obj->str(my $val);
+  Test::ZeroCopy::is_zerocopy($val, $enc);
+}
+
 }
