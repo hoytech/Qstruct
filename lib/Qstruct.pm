@@ -590,13 +590,15 @@ QSTRUCT_ERRNO_* / qstruct_strerror() system
 
 tests:
   * nested qstructs
-  * malformed messages
   * schema evolution
-  * when accessing body fields, if the body is too short it returns default values (and never reads into the heap)
-  * fuzzer (run in valgrind/-fsanitize=address)
+  * malformed messages
+    * when accessing body fields, if the body is too short it returns default values (and never reads into the heap)
 
 
 TODO long-term:
+
+tests:
+  * bit-manipulation fuzzer (run in valgrind/-fsanitize=address)
 
 "zero-copy" encode (ie output param for encode methods)
 support "out-of-order" qstruct definitions (ie without needing forward declarations)
