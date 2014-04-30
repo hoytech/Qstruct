@@ -125,7 +125,7 @@ sub load_schema {
           my $alignment = $base_type == 1 ? 1 : 8;
           _install_closure($setter_name, sub {
             my $elems = scalar @{$_[1]};
-            my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $elems * 16, 8);
+            my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, 16, $elems);
             for (my $i=0; $i<$elems; $i++) {
               $_[0]->{b}->set_string($_[0]->{i}, $array_offset + ($i * 16), $_[1]->[$i], $alignment);
             }
@@ -186,7 +186,7 @@ sub load_schema {
           _install_closure($setter_name, sub {
             if (ref $_[1]) {
               my $elems = scalar @{$_[1]};
-              my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $elems * $type_width, $type_width);
+              my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $type_width, $elems);
               for (my $i=0; $i<$elems; $i++) {
                 $_[0]->{b}->$type_setter_method($_[0]->{i}, $array_offset + ($i * $type_width), $_[1]->[$i]);
               }
@@ -194,7 +194,7 @@ sub load_schema {
               my $elems = int(length($_[1]) / $type_width);
               croak "$item->{name} is a dynamic array of $type_width-byte elements but you passed in a string with length not divisible by $type_width (" . length($_[1]) . ")"
                 if length($_[1]) != ($elems * $type_width);
-              my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $elems * $type_width, $type_width);
+              my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $type_width, $elems);
               $_[0]->{b}->set_raw_bytes($_[0]->{i}, $array_offset, $_[1]);
             }
             return $_[0];

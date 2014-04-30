@@ -295,8 +295,8 @@ get_dyn_array(buf_sv, body_index, byte_offset, elem_size)
         rv = newAV();
         sv_2mortal((SV*)rv);
 
-        av_push(rv, newSViv(array_base - QSTRUCT_HEADER_SIZE - buf)); // FIXME: change this interface so we don't need QSTRUCT_HEADER_SIZE
-        av_push(rv, newSViv(array_size / elem_size));
+        av_push(rv, newSViv(array_base - buf));
+        av_push(rv, newSViv((array_size-QSTRUCT_HEADER_SIZE) / elem_size)); // FIXME: change this interface so we don't need QSTRUCT_HEADER_SIZE
 
         RETVAL = rv;
     OUTPUT:
@@ -352,16 +352,16 @@ set_string(self, body_index, byte_offset, value_sv, int alignment)
         if (ret = qstruct_builder_set_pointer(self, body_index, byte_offset, value, value_size, alignment, NULL)) croak("out of memory (%d)", ret);
 
 size_t
-set_array(self, body_index, byte_offset, size, alignment)
+set_array(self, body_index, byte_offset, elem_size, elem_count)
         Qstruct_Builder self
         uint32_t body_index
         uint32_t byte_offset
-        size_t size
-        int alignment
+        uint32_t elem_size
+        uint32_t elem_count
     CODE:
         size_t data_start = 0;
 
-        if (qstruct_builder_set_pointer(self, body_index, byte_offset, NULL, size, alignment, &data_start)) croak("out of memory");
+        if (qstruct_builder_set_array(self, body_index, byte_offset, elem_size, elem_count, &data_start)) croak("out of memory");
 
         RETVAL = data_start;
     OUTPUT:
@@ -399,7 +399,7 @@ render(builder)
         RETVAL = newSVpvn(msg, msg_size);
     OUTPUT:
         RETVAL
-  
+
 
 void
 DESTROY(builder)
