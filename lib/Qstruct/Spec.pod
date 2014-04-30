@@ -99,7 +99,7 @@ Blobs never use tagged-sizes because of their alignment requirements.
 
 Default: "" (empty string: size=0, pointer=NULL)
 
-Alignment: The pointers to strings/blobs are aligned at 8. String data is aligned at 1 (unaligned), blob data is aligned at 16.
+Alignment: The pointers to strings/blobs are aligned at 8. String data is aligned at 1 (unaligned), blob data is aligned at 8.
 
 =back
 

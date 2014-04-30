@@ -122,7 +122,7 @@ sub load_schema {
 
       if ($is_array_dyn) {
         if ($base_type == 1 || $base_type == 2) { # string/blob
-          my $alignment = $base_type == 1 ? 1 : 16;
+          my $alignment = $base_type == 1 ? 1 : 8;
           _install_closure($setter_name, sub {
             my $elems = scalar @{$_[1]};
             my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $elems * 16, 8);
@@ -251,7 +251,7 @@ sub load_schema {
         }
       } else { ## scalar
         if ($base_type == 1 || $base_type == 2) { # string/blob
-          my $alignment = $base_type == 1 ? 1 : 16;
+          my $alignment = $base_type == 1 ? 1 : 8;
           _install_closure($setter_name, sub {
             $_[0]->{b}->set_string($_[0]->{i}, $byte_offset, $_[1], $alignment);
             return $_[0];
@@ -262,7 +262,7 @@ sub load_schema {
             return $o if !exists $_[1];
           });
         } elsif ($base_type == 10) { # nested qstruct
-          my $alignment = 8; # FIXME: blobs should also align at 8
+          my $alignment = 8;
           _install_closure($setter_name, sub {
             my $nested_val = $nested_type->encode($_[1]);
             $_[0]->{b}->set_string($_[0]->{i}, $byte_offset, $nested_val, $alignment);
@@ -594,7 +594,6 @@ tests:
     * when accessing body fields, if the body is too short it returns default values (and never reads into the heap)
 
 QSTRUCT_ERRNO_* / qstruct_strerror() system
-?? get rid of blobs
 
 
 TODO long-term:
