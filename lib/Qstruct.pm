@@ -125,21 +125,24 @@ sub load_schema {
           my $alignment = $base_type == 1 ? 1 : 8;
           _install_closure($setter_name, sub {
             my $elems = scalar @{$_[1]};
-            my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, 16, $elems);
-            for (my $i=0; $i<$elems; $i++) {
-              $_[0]->{b}->set_string($_[0]->{i}, $array_offset + ($i * 16), $_[1]->[$i], $alignment);
+            my $builder = Qstruct::Builder->new(0, 16, $elems);
+            for my $i (0 .. ($elems - 1)) {
+              $builder->set_string(0, $i * 16, $_[1]->[$i], $alignment);
             }
+            $_[0]->{b}->set_string($_[0]->{i}, $byte_offset, $builder->render, 8);
             return $_[0];
           });
 
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
             my $body_index = $_[0]->{i};
-            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($$buf, $body_index, $byte_offset, 16) };
+            Qstruct::Runtime::get_string($$buf, $body_index, $byte_offset, my $str, 1);
+            my ($magic_id, $body_size, $elems) = @{ Qstruct::Runtime::unpack_header($str) };
+
             return Qstruct::ArrayRef->new($elems,
                              sub {
                                return undef if $_[0] >= $elems;
-                               Qstruct::Runtime::get_string($$buf, $body_index, $array_base + ($_[0] * 16), exists $_[1] ? $_[1] : my $o, 1);
+                               Qstruct::Runtime::get_string($str, 0, $_[0] * $body_size, exists $_[1] ? $_[1] : my $o, 1);
                                return $o if !exists $_[1];
                              }, sub {
                                croak "raw accessors not supported for type $base_type/$type not supported";

@@ -104,8 +104,7 @@ is($obj->b->raw, "\x01"x11);
 is($obj->c->len, 2);
 is($obj->c->[0]->n, "OMGOMG");
 is($obj->c->[0]->m, "");
-## FIXME: this test fails because of incomplete implementation
-#is($obj->c->[1]->n, "roflcopter"x1000);
+is($obj->c->[1]->n, "roflcopter"x1000);
 is($obj->c->[1]->m, "");
 
 }
