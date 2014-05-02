@@ -60,7 +60,7 @@ Here is an example schema:
 
 A family of types that differ in signedness, size, and alignment: C<int8>, C<int16>, C<int32>, C<int64>, C<uint8>, C<uint16>, C<uint32>, C<uint64>.
 
-Always stored in little-endian byte order (even when in memory on big-endian machines).
+Always stored in little-endian byte order (even in-memory on big-endian machines).
 
 Default: 0
 
@@ -87,9 +87,9 @@ Alignment: N/A
 
 =item  string/blob
 
-A (size, offset) tuple referring to a subsequent part of the message. These fields consume at least 16 bytes each. The only difference between B<string>s and B<blob>s is that blobs are aligned at 16 bytes and are therefore suitable for maintaining message alignment across nested qstructs.
+A (size, offset) tuple referring to a subsequent part of the message. These fields consume at least 16 bytes each. The only difference between B<string>s and B<blob>s is that blobs are aligned at 8 bytes and are therefore suitable for maintaining message alignment.
 
-Strings and blobs are both considered arbitrary sequences of bytes and neither type enforces any character encoding. I don't believe it is necessary for (or even the place of) a serialisation format to dictate encoding policies. Of course you are free to enforce a common encoding for all of I<your> messages. Qstruct may eventually have an C<:encoding> field modifer that directs implementations to enforce encodings.
+Strings and blobs are both considered arbitrary sequences of bytes and neither type enforces any character encoding. I don't believe it is necessary for (or even the place of) a serialisation format to dictate encoding policies. Of course you are free to enforce a common encoding for all of I<your> messages. Qstruct may eventually have an C<:encoding> field modifer that directs implementations to enforce character encodings.
 
 Neither strings nor blobs are NUL-byte terminated. They may contain NUL-bytes in mid-sequence. Failure to use the associated sizes of strings or blobs is a serious bug in your code. In high-level languages such as perl you should never need to worry about this but you do need to be careful when using the L<libqstruct|https://github.com/hoytech/libqstruct> C API.
 
@@ -114,14 +114,14 @@ A message is a block of data representing a Qstruct. It is either in the process
 
 The message data should be considered a binary blob. It may contain NUL bytes so its length must be stored separately (ie, you can't count on a terminating NUL).
 
-Messages can in theory be any size representable by an unsigned 64 bit number. However, on 32-bit machines some messages are too large to access and attempting to build or load/access these messages will throw exceptions. There are other size constraints as well: Arrays of qstructs can't contain more than C<2**32 - 1> elements, and qstruct bodies can't be more than C<2**32 - 1> bytes large.
+Messages can in theory be any size representable by an unsigned 64 bit number. However, on 32-bit machines some messages are too large to access and attempting to build, load, or access these messages will throw exceptions. There are other size constraints as well: Arrays can't contain more than C<2**32 - 1> elements, and qstruct bodies can't be more than C<2**32 - 1> bytes large.
 
-Messages are not self-delimiting so when transmitting or storing they need to be framed in some fashion. For example, when sending across a socket you might choose to send an 8-byte little-endian integer before the message data to indicate the size of the message that follows. When you apply framing be aware that it may impact data alignment at the receiving end (which is OK except that misaligned messages may slightly degrade performance on some machines).
+Messages are not self-delimiting so when transmitting or storing they need to be framed in some fashion. For example, when sending across a socket you might choose to send an 8-byte little-endian integer before the message data to indicate the size of the message that follows. When you apply framing be aware that it may impact data alignment at the receiving end which is OK except that misaligned messages may degrade performance on some machines (not modern x86-64 processors).
 
 
 =head2 HEADER
 
-All Qstructs start with a 16 byte C<header>:
+All Qstructs and arrays start with a 16 byte C<header>:
 
     00000000  00 00 00 00 00 00 00 00  15 2f 00 00 01 00 00 00
               |-------magic id------|  |body size| |body count|
@@ -170,16 +170,16 @@ Here is the hexdump of the resulting message:
               |-> name (@2) tag byte indicating length of inline string
 
 
-When computing the offsets, the Qstruct compiler will always try to find the first location in the message that a data type will fit into while still respecting the alignment preference of the data type. The algorithm is equivalent to a B<first-fit> memory allocator.
+When computing the offsets, the Qstruct compiler will always try to find the first location in the message that a data type will fit into while still respecting the alignment requirement of the data type. The algorithm is equivalent to a B<first-fit> memory allocator.
 
-In the case of arrays of nested qstructs, multiple B<bodies> will be stored adjacent in the content as determined by the C<body_size> and C<body_count> values from the header. There may be padding between bodies to maintain alignments. Qstruct bodies can't be more than C<2**32 - 1> bytes large.
+In the case of arrays, multiple B<bodies> will be stored adjacent in the content as determined by the C<body_size> and C<body_count> values from the header. There may be padding between bodies to maintain alignments. Bodies can't be more than C<2**32 - 1> bytes large.
 
 The body size needs to be stored in the header because the size of the body will change depending on the version of the schema. If a field that has an end offset beyond a body's bounds is accessed, a default value is returned (see the types section for the list of default values).
 
 
 =head2 HEAP
 
-When a tagged size cannot be used because of a string exceeding 15 bytes in length or a type that prohibits it (ie blob or array), the value will be appended onto the B<heap>.
+When a tagged size cannot be used because of a string exceeding 15 bytes in length or a type that prohibits it (ie blob or dynamic array), the value will be appended onto the B<heap>.
 
 Heap locations are referenced by "pointers" which are actually offsets from the beginning of the header in bytes. For example, given the schema from the previous section, if the name is instead C<"too long for tagged size"> then it must be stored in the heap: 
 
@@ -217,27 +217,27 @@ Examples:
     profile_pictures @1 blob[];
     comments @2 MyApp::Comment[];
 
-Dynamic arrays are the most flexible type of arrays since they can contain 0 or more elements, up to available memory or address space limitations.
+Dynamic arrays are the most flexible type of arrays since they can contain 0 or more elements, up to available memory and address space limitations.
 
 The size and offset of a dynamic array are stored in the body of a message, meaning dynamic arrays consume at least 16 bytes even when empty. Additionally, accessing them requires an indirection through the offset pointer.
 
-Dynamic arrays are typically stored on the heap. However, in the same way as strings, dynamic arrays can be stored as tagged-sizes inside the size/pointer fields as long as their sizes and alignments are compatible. For example, dynamic C<int8>/C<uint8> arrays of up to length 15 can be stored in tagged-sizes. Similarly, up to 7 C<int16>/C<uint16>, 3 C<int32>/C<uint32>, or 1 C<int64/uint64> can be stored in a tagged-size.
+Dynamic arrays are stored on the heap. Because in addition to the offset pointer and length, arrays also contain information that encodes how wide each element is, it is possible to evolve a schema by changing a dynamic array of a primitive into a dynamic array of qstructs as long as the first element in the qstruct is the same type as the original primitive.
 
-Arrays of qstructs can't contain more than C<2**32 - 1> elements.
+Arrays can't contain more than C<2**32 - 1> elements and no element can be larger than C<2**32 - 1> bytes large.
 
 
 =head2 FIXED ARRAYS
 
 Fixed arrays have numbers inside their bracketed array specifiers.
 
-Only numeric (ie integer or floating point) types values may be used in fixed arrays: Strings, blobs, bools, and qstructs cannot be stored in fixed arrays.
+Only numeric (ie integer or floating point) types may be used in fixed arrays: Strings, blobs, bools, and qstructs cannot be stored in fixed arrays.
 
 Examples:
 
     sha256_checksum @0 uint8[32];
     rainfall_by_month @1 float[12];
 
-Fixed arrays are stored inline in the body of the message. Their size and offset from the start of the message is always known exactly so there is no need to store/compute offset pointers or lengths. However, you can never change the size of the array so they should only be used when you are 100% certain that you will never want to expand, shrink, or remove this field.
+Fixed arrays are stored inline in the body of the message which avoids 32 bytes of overhead per array. Their size and offset from the start of the message is always known exactly so there is no need to store/compute offset pointers or lengths. However, you can never change the size of the array so they should only be used when you are 100% certain that you will never want to expand, shrink, or remove this field. Additionally, unlike dynamic arrays, you can't change your mind later and convert them into arrays of qstructs.
 
 
 
@@ -247,7 +247,7 @@ Comments and extra whitespace can be added/removed anywhere in the schema.
 
 The qstruct definitions can be shuffled around in any order in the schema.
 
-You can add new fields to a qstruct as long as you don't change existing fields' types or C<@> ids and the C<@> ids are always repeating without gaps. Any messages that were created with the old schema will still be loadable: Accessing new fields in old messages will return default values.
+You can add new fields to a qstruct as long as you don't change existing fields' types or C<@> ids and there are no collisions or gaps in the C<@> id numbers. Any messages that were created with the old schema will still be loadable: Accessing new fields in old messages will return default values.
 
 You can change the name of any field as long as you don't change its C<@> id.
 
@@ -268,13 +268,13 @@ Do not process schemas from potentially malicious sources. There are trivial mem
 
 =head2 SAFETY OF LOADING/ACCESSING
 
-If you use the wrong schema or if the message has been corrupted by a malicious attacker then there should be no possibility of a segfault or reading/writing out of bounds. However, the message data will be garbage (but of course malicious messages can encode garbage data anyway).
+If the message has been corrupted by a malicious attacker (or you accidentally use the wrong schema) then there should be no possibility of a segfault or reading/writing out of bounds. However, the message data will be garbage (but of course malicious messages can encode garbage data anyway).
 
 When loading or accessing a message there should be no way to make this module consume any more memory than you explicitly copy out of it. In any one operation this will be at most the size of the message. With zero-copy accessors none of the message data is copied at all.
 
 Unlike Cap'n Proto, the simplistic nature of the Qstruct format does not provide list-like/tree-like/nested data-structures so there is nothing to configure in the Qstruct implementation to prevent stack overflows, cycles, or recursion.
 
-Note that you can treat blobs as nested Qstructs and manually traverse them (or arrays of them) if you want. If you do this in some data-directed fashion (as opposed to code-directed) your program may be vulnerable to resource-exhaustion attacks if it processes malicious messages. I suggest using purely code-directed message traversal if possible.
+However, nested qstructs and blobs (or arrays of them) can be manually traversed if you choose. If you do this in some data-directed fashion (as opposed to code-directed) your program may be vulnerable to resource-exhaustion attacks if it processes malicious messages. I suggest using purely code-directed message traversal if possible.
 
 
 =head1 CANONICALISATION
@@ -283,7 +283,6 @@ This is not implemented yet but, subject to some constraints I will document her
 
 There is a lot to think about for this so don't rely on this feature for security until at least all the following points are fleshed out:
 
-    * Null out reserved area
     * Null out all free and unallocated space
     * Make sure 0-length strings/blobs/arrays always point to NULL
     * All pointers (other than NULL pointers) must point forward and be

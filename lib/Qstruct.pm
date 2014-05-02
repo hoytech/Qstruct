@@ -473,7 +473,7 @@ Arrays of qstructs work essentially the same as arrays of primitive types except
 
 =head1 RAW ARRAY ACCESS
 
-For numeric types there are also raw accessors. For example, hash values are known-length values so it can make sense for them to be fixed arrays which are inlined in the message body for efficiency (see L<Qstruct::Spec> for details). Such arrays are most likely best accessed with raw accessors:
+For fixed arrays of numeric types there are also raw accessors. For example, hash values are known-length values so it can make sense for them to be fixed arrays which are inlined in the message body for efficiency (see L<Qstruct::Spec> for details). Such arrays are most likely best accessed with raw accessors:
 
     ## Whole-array access (copying)
 
@@ -491,23 +491,11 @@ When encoding messages, you can simply pass in an appropriately sized string and
       sha256_hash => Digest::SHA::sha256("whatever"),
     });
 
-Dynamic arrays can also be accessed with raw accessors:
+Numeric values are stored in little-endian format so if you use raw accessors on arrays with elements of more than 2 byte sizes then you will need to C<pack> and C<unpack> them in order for your code to be portable.
 
-    $user->account_ids->raw(my $buffer_of_little_endian_uint64s);
+Also, fixed arrays are more limited than dynamic arrays in that the schema can't be evolved by converting them into arrays of nested qstructs.
 
-Since C<account_ids> is of type C<uint64[]>, the above variable will reference a buffer of C<N * 8> bytes where N is the number of account ids in the array and 8 is the number of bytes in a C<uint64>.
-
-Note also that numeric values are stored in little-endian format so if you use raw accessors on arrays with elements of more than 2 byte sizes then you will need to C<pack> and C<unpack> them in order for your code to be portable.
-
-Dynamic arrays can be set with raw buffers in the same way as can fixed arrays:
-
-    my $msg = MyPkg::User->encode({
-      account_ids => $buffer_of_little_endian_uint64s;
-    });
-
-When setting the above dynamic array, if the length of C<$buffer_of_little_endian_uint64s> is not divisible by C<8> then an exception will be thrown.
-
-Because of the portability and evolution restrictions, raw array access is usually unnecessary and you should prefer dynamic over raw array access.
+Because of the portability and schema evolution restrictions, fixed arrays and raw array access are usually recommended against.
 
 
 =head1 EXCEPTIONS
