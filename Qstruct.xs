@@ -270,40 +270,6 @@ get_raw_bytes(buf_sv, body_index, byte_offset, length, output_sv, int allow_heap
 
 
 
-
-AV *
-get_dyn_array(buf_sv, body_index, byte_offset, elem_size)
-        SV *buf_sv
-        uint32_t body_index
-        uint32_t byte_offset
-        size_t elem_size
-    CODE:
-        char *buf, *array_base;
-        size_t buf_size, array_size;
-        int ret;
-        AV *rv;
-
-        if (!SvPOK(buf_sv)) croak("buf is not a string");
-        buf_size = SvCUR(buf_sv);
-        buf = SvPV(buf_sv, buf_size);
-
-        ret = qstruct_get_pointer(buf, buf_size, body_index, byte_offset, &array_base, &array_size, elem_size, 0);
-
-        if (ret == -2) croak("array too large for 32 bit machine");
-        if (ret) croak("malformed qstruct");
-
-        rv = newAV();
-        sv_2mortal((SV*)rv);
-
-        av_push(rv, newSViv(array_base - buf));
-        av_push(rv, newSViv((array_size-QSTRUCT_HEADER_SIZE) / elem_size)); // FIXME: change this interface so we don't need QSTRUCT_HEADER_SIZE
-
-        RETVAL = rv;
-    OUTPUT:
-        RETVAL
-
-
-
 MODULE = Qstruct         PACKAGE = Qstruct::Builder
 PROTOTYPES: ENABLE
 
