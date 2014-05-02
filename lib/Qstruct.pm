@@ -206,13 +206,14 @@ sub load_schema {
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
             my $body_index = $_[0]->{i};
-            my ($array_base, $elems) = @{ Qstruct::Runtime::get_dyn_array($$buf, $body_index, $byte_offset, $type_width) };
+            Qstruct::Runtime::get_string($$buf, $body_index, $byte_offset, my $str, 1);
+            my ($magic_id, $body_size, $elems) = @{ Qstruct::Runtime::unpack_header($str) };
             return Qstruct::ArrayRef->new($elems,
                              sub {
                                return undef if $_[0] >= $elems;
-                               return $type_getter_sub->($$buf, $body_index, $array_base + ($_[0] * $type_width), 1);
+                               return $type_getter_sub->($str, 0, $_[0] * $body_size, 1);
                              }, sub {
-                               Qstruct::Runtime::get_raw_bytes($$buf, $body_index, $array_base, $elems * $type_width, $_[0], 1);
+                               croak "raw accessors not supported for type $base_type/$type not supported";
                              });
           });
         } else {
