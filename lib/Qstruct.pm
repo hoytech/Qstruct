@@ -144,8 +144,6 @@ sub load_schema {
                                return undef if $_[0] >= $elems;
                                Qstruct::Runtime::get_string($str, 0, $_[0] * $body_size, exists $_[1] ? $_[1] : my $o, 1);
                                return $o if !exists $_[1];
-                             }, sub {
-                               croak "raw accessors not supported for type $base_type/$type not supported";
                              });
           });
         } elsif ($base_type == 10) { # nested qstruct
@@ -181,8 +179,6 @@ sub load_schema {
 
                                $_[1] = $nested_obj;
                                return $nested_obj;
-                             }, sub {
-                               croak "raw accessors not supported for type $base_type/$type not supported";
                              });
           });
         } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
@@ -212,8 +208,6 @@ sub load_schema {
                              sub {
                                return undef if $_[0] >= $elems;
                                return $type_getter_sub->($str, 0, $_[0] * $body_size, 1);
-                             }, sub {
-                               croak "raw accessors not supported for type $base_type/$type not supported";
                              });
           });
         } else {

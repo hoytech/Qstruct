@@ -22,7 +22,6 @@ Qstruct::load_schema(q{
     blob @3 blob;
     blobs @4 blob[];
     hash @5 uint8[32];
-    ints @6 uint8[];
   }
 
   qstruct MyObjWrapper {
@@ -41,7 +40,6 @@ my $enc = MyObj->build
             ->blob("Q"x4096)
             ->blobs(["\x00", "Z"x100000])
             ->hash("Q"x32)
-            ->ints([48, 49, 50, 51, 52])
             ->encode;
 
 my $obj = MyObj->decode($enc);
