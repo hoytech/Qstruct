@@ -183,18 +183,10 @@ sub load_schema {
           });
         } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
           _install_closure($setter_name, sub {
-            if (ref $_[1]) {
-              my $elems = scalar @{$_[1]};
-              my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $type_width, $elems);
-              for (my $i=0; $i<$elems; $i++) {
-                $_[0]->{b}->$type_setter_method($_[0]->{i}, $array_offset + ($i * $type_width), $_[1]->[$i]);
-              }
-            } else {
-              my $elems = int(length($_[1]) / $type_width);
-              croak "$item->{name} is a dynamic array of $type_width-byte elements but you passed in a string with length not divisible by $type_width (" . length($_[1]) . ")"
-                if length($_[1]) != ($elems * $type_width);
-              my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $type_width, $elems);
-              $_[0]->{b}->set_raw_bytes($_[0]->{i}, $array_offset, $_[1]);
+            my $elems = scalar @{$_[1]};
+            my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $type_width, $elems);
+            for (my $i=0; $i<$elems; $i++) {
+              $_[0]->{b}->$type_setter_method($_[0]->{i}, $array_offset + ($i * $type_width), $_[1]->[$i]);
             }
             return $_[0];
           });
