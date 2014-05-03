@@ -113,3 +113,26 @@ my $obj = MyObjWrapper->decode($enc);
 }
 
 }
+
+
+### Main message data goes out of scope
+
+{
+  my $ref_to_val;
+
+  {
+    my $enc = MyObj->encode({
+                str => "HELLO WORLD",
+              });
+
+    my $obj = MyObj->decode($enc);
+
+    $obj->str(my $val);
+    Test::ZeroCopy::is_zerocopy($val, $enc);
+
+    $ref_to_val = \$val;
+    Test::ZeroCopy::is_zerocopy($$ref_to_val, $enc);
+  }
+
+  is($$ref_to_val, "HELLO WORLD", 'enc/obj out of scope');
+}

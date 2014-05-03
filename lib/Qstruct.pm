@@ -563,7 +563,6 @@ TODO pre-cpan:
 
 tests:
   * nested qstructs
-  * make encoded string go out-of-scope, read from zero-copy accessor, make sure it wasn't garbage collected
   * malformed messages
     * backwards pointers
     * when accessing body fields, if the body is too short it returns default values (and never reads into the heap)
