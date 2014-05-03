@@ -124,7 +124,7 @@ sub load_schema {
         if ($base_type == 1 || $base_type == 2) { # string/blob
           my $alignment = $base_type == 1 ? 1 : 8;
           _install_closure($setter_name, sub {
-            my $elems = scalar @{$_[1]};
+            my $elems = scalar @{$_[1]} || return;
             my $builder = Qstruct::Builder->new(0, 16, $elems);
             for my $i (0 .. ($elems - 1)) {
               $builder->set_string(0, $i * 16, $_[1]->[$i], $alignment);
@@ -148,6 +148,7 @@ sub load_schema {
           });
         } elsif ($base_type == 10) { # nested qstruct
           _install_closure($setter_name, sub {
+            return if !scalar @{ $_[1] };
             my $nested_val = $nested_type->encode($_[1]);
             $_[0]->{b}->set_string($_[0]->{i}, $byte_offset, $nested_val, 8);
             return $_[0];
@@ -162,7 +163,6 @@ sub load_schema {
             {
               my $nested_obj = bless { e => \'', }, "${nested_type}::Loader";
               Qstruct::Runtime::get_string($$buf, $_[0]->{i}, $byte_offset, ${$nested_obj->{e}});
-
               ($magic_id, $body_size, $elems) = @{ Qstruct::Runtime::unpack_header(${$nested_obj->{e}}) };
             }
 
@@ -183,7 +183,7 @@ sub load_schema {
           });
         } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
           _install_closure($setter_name, sub {
-            my $elems = scalar @{$_[1]};
+            my $elems = scalar @{$_[1]} || return;
             my $builder = Qstruct::Builder->new(0, $type_width, $elems);
             for my $i (0 .. ($elems - 1)) {
               $builder->$type_setter_method($i, 0, $_[1]->[$i]);
@@ -210,7 +210,7 @@ sub load_schema {
         if ($base_type >= 4 && $base_type <= 9) { # floats and ints
           _install_closure($setter_name, sub {
             if (ref $_[1]) {
-              my $elems = scalar @{$_[1]};
+              my $elems = scalar @{$_[1]} || return;
               croak "$item->{name} is a fixed array of ${full_type_name}[$fixed_array_size] but you passed in an array of $elems values"
                 if $elems != $fixed_array_size;
 
@@ -559,26 +559,21 @@ The bundled C<libqstruct> is (C) Doug Hoyte and licensed under the 2-clause BSD 
 
 TODO pre-cpan:
 
-!! make sure there are no integer overflows in the ragel parser
 !! make sure pointers always point forwards
 
 tests:
   * nested qstructs
-    * empty lists
-  * schema evolution
-    * dyn-array of primitives -> dyn-array of nested qstructs (need to leave room in prim arrays?)
   * make encoded string go out-of-scope, read from zero-copy accessor, make sure it wasn't garbage collected
   * malformed messages
     * backwards pointers
     * when accessing body fields, if the body is too short it returns default values (and never reads into the heap)
 
-QSTRUCT_ERRNO_* / qstruct_strerror() system
-
 
 TODO long-term:
 
 !! support "out-of-order" qstruct definitions (ie without needing forward declarations)
-!! Qstruct::Compiler
+Qstruct::Compiler
+  * QSTRUCT_ERRNO_* / qstruct_strerror() system
 
 tests:
   * bit-manipulation fuzzer (run in valgrind/-fsanitize=address)
@@ -590,3 +585,4 @@ fewer copies in encode method after final malloc
   ?? maybe it can steal the malloc buffer and be zerocopy
 ?? :encoding(utf8) type modifier that enforces character encodings on encoding and decoding
 ?? :align type modifier
+?? enums

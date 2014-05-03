@@ -153,8 +153,12 @@ unpack_header(buf_sv)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_unpack_header(buf, buf_size, &magic_id, &body_size, &body_count);
-        if (ret) croak("unable to unpack header");
+        if (buf_size > 0) {
+          ret = qstruct_unpack_header(buf, buf_size, &magic_id, &body_size, &body_count);
+          if (ret) croak("unable to unpack header");
+        } else {
+          magic_id = body_size = body_count;
+        }
 
         rv = newAV();
         sv_2mortal((SV*)rv);
