@@ -317,21 +317,6 @@ set_string(self, body_index, byte_offset, value_sv, int alignment)
 
         if (ret = qstruct_builder_set_pointer(self, body_index, byte_offset, value, value_size, alignment, NULL)) croak("out of memory (%d)", ret);
 
-size_t
-set_array(self, body_index, byte_offset, elem_size, elem_count)
-        Qstruct_Builder self
-        uint32_t body_index
-        uint32_t byte_offset
-        uint32_t elem_size
-        uint32_t elem_count
-    CODE:
-        size_t data_start = 0;
-
-        if (qstruct_builder_set_array(self, body_index, byte_offset, elem_size, elem_count, &data_start)) croak("out of memory");
-
-        RETVAL = data_start;
-    OUTPUT:
-        RETVAL
 
 void
 set_raw_bytes(self, body_index, byte_offset, bytes)

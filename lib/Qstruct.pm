@@ -184,10 +184,11 @@ sub load_schema {
         } elsif ($base_type >= 4 && $base_type <= 9) { # floats and ints
           _install_closure($setter_name, sub {
             my $elems = scalar @{$_[1]};
-            my $array_offset = $_[0]->{b}->set_array($_[0]->{i}, $byte_offset, $type_width, $elems);
-            for (my $i=0; $i<$elems; $i++) {
-              $_[0]->{b}->$type_setter_method($_[0]->{i}, $array_offset + ($i * $type_width), $_[1]->[$i]);
+            my $builder = Qstruct::Builder->new(0, $type_width, $elems);
+            for my $i (0 .. ($elems - 1)) {
+              $builder->$type_setter_method($i, 0, $_[1]->[$i]);
             }
+            $_[0]->{b}->set_string($_[0]->{i}, $byte_offset, $builder->render, 8);
             return $_[0];
           });
 
