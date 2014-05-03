@@ -199,7 +199,7 @@ get_bool(buf_sv, body_index, byte_offset, bit_offset)
 
 
 void
-get_string(buf_sv, body_index, byte_offset, output_sv, int allow_heap = 0)
+get_string(buf_sv, body_index, byte_offset, output_sv)
         SV *buf_sv
         uint32_t body_index
         uint32_t byte_offset
@@ -213,7 +213,7 @@ get_string(buf_sv, body_index, byte_offset, output_sv, int allow_heap = 0)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_get_pointer(buf, buf_size, body_index, byte_offset, &output, &output_size, 1, allow_heap);
+        ret = qstruct_get_pointer(buf, buf_size, body_index, byte_offset, &output, &output_size, 1);
 
         if (ret) croak("malformed qstruct (%d)", ret);
 
@@ -235,7 +235,7 @@ get_string(buf_sv, body_index, byte_offset, output_sv, int allow_heap = 0)
 
 
 void
-get_raw_bytes(buf_sv, body_index, byte_offset, length, output_sv, int allow_heap = 0)
+get_raw_bytes(buf_sv, body_index, byte_offset, length, output_sv)
         SV *buf_sv
         uint32_t body_index
         uint32_t byte_offset
@@ -250,7 +250,7 @@ get_raw_bytes(buf_sv, body_index, byte_offset, length, output_sv, int allow_heap
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_get_raw_bytes(buf, buf_size, body_index, byte_offset, length, &output, &output_size, allow_heap);
+        ret = qstruct_get_raw_bytes(buf, buf_size, body_index, byte_offset, length, &output, &output_size);
         if (ret) croak("malformed qstruct");
 
         SvUPGRADE(output_sv, SVt_PV);

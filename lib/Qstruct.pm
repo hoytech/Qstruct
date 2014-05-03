@@ -136,13 +136,13 @@ sub load_schema {
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
             my $body_index = $_[0]->{i};
-            Qstruct::Runtime::get_string($$buf, $body_index, $byte_offset, my $str, 1);
+            Qstruct::Runtime::get_string($$buf, $body_index, $byte_offset, my $str);
             my ($magic_id, $body_size, $elems) = @{ Qstruct::Runtime::unpack_header($str) };
 
             return Qstruct::ArrayRef->new($elems,
                              sub {
                                return undef if $_[0] >= $elems;
-                               Qstruct::Runtime::get_string($str, 0, $_[0] * $body_size, exists $_[1] ? $_[1] : my $o, 1);
+                               Qstruct::Runtime::get_string($str, $_[0], 0, exists $_[1] ? $_[1] : my $o);
                                return $o if !exists $_[1];
                              });
           });
@@ -194,12 +194,12 @@ sub load_schema {
           _install_closure($getter_name, sub {
             my $buf = $_[0]->{e};
             my $body_index = $_[0]->{i};
-            Qstruct::Runtime::get_string($$buf, $body_index, $byte_offset, my $str, 1);
+            Qstruct::Runtime::get_string($$buf, $body_index, $byte_offset, my $str);
             my ($magic_id, $body_size, $elems) = @{ Qstruct::Runtime::unpack_header($str) };
             return Qstruct::ArrayRef->new($elems,
                              sub {
                                return undef if $_[0] >= $elems;
-                               return $type_getter_sub->($str, 0, $_[0] * $body_size, 1);
+                               return $type_getter_sub->($str, $_[0], 0);
                              });
           });
         } else {
@@ -231,7 +231,7 @@ sub load_schema {
             return Qstruct::ArrayRef->new($fixed_array_size,
                              sub {
                                return undef if $_[0] >= $fixed_array_size;
-                               return $type_getter_sub->($$buf, $body_index, $byte_offset + ($_[0] * $type_width), 1);
+                               return $type_getter_sub->($$buf, $body_index, $byte_offset + ($_[0] * $type_width));
                              }, sub {
                                Qstruct::Runtime::get_raw_bytes($$buf, $body_index, $byte_offset, $fixed_array_size * $type_width, $_[0]);
                              });

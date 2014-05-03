@@ -23,11 +23,10 @@ sub gen_getter {
   print <<END;
 
 $real_c_type
-get_$real_type(buf_sv, body_index, byte_offset, allow_heap = 0)
+get_$real_type(buf_sv, body_index, byte_offset)
         SV *buf_sv
         uint32_t body_index
         uint32_t byte_offset
-        int allow_heap
     CODE:
         char *buf;
         size_t buf_size;
@@ -38,7 +37,7 @@ get_$real_type(buf_sv, body_index, byte_offset, allow_heap = 0)
         buf_size = SvCUR(buf_sv);
         buf = SvPV(buf_sv, buf_size);
 
-        ret = qstruct_get_$storage_type(buf, buf_size, body_index, byte_offset, ($storage_c_type *) &output, allow_heap);
+        ret = qstruct_get_$storage_type(buf, buf_size, body_index, byte_offset, ($storage_c_type *) &output);
 
         if (ret) croak("malformed qstruct");
 
