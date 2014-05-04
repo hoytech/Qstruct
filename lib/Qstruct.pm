@@ -260,9 +260,12 @@ sub load_schema {
             return $_[0];
           });
 
+          my $empty_struct = "\x00"x12 . "\x01\x00\x00\x00";
+
           _install_closure($getter_name, sub {
             my $nested_obj = bless { i => 0, e => \'', }, "${nested_type}::Loader";
             Qstruct::Runtime::get_string(${$_[0]->{e}}, $_[0]->{i}, $byte_offset, ${$nested_obj->{e}});
+            $nested_obj->{e} = \$empty_struct if length(${$nested_obj->{e}}) == 0;
             my $ret = Qstruct::Runtime::sanity_check(${$nested_obj->{e}});
             croak "malformed qstruct, sanity ($ret)"
               if $ret;
@@ -560,6 +563,7 @@ The bundled C<libqstruct> is (C) Doug Hoyte and licensed under the 2-clause BSD 
 TODO pre-cpan:
 
 !! make sure pointers always point forwards
+!! make sure no identifiers have adjacent _s in their names
 
 tests:
   * nested qstructs
@@ -571,8 +575,6 @@ tests:
 TODO long-term:
 
 !! support "out-of-order" qstruct definitions (ie without needing forward declarations)
-Qstruct::Compiler
-  * QSTRUCT_ERRNO_* / qstruct_strerror() system
 
 tests:
   * bit-manipulation fuzzer (run in valgrind/-fsanitize=address)
@@ -583,5 +585,9 @@ vectored I/O builder for 0-copy/1-copy building
 fewer copies in encode method after final malloc
   ?? maybe it can steal the malloc buffer and be zerocopy
 ?? :encoding(utf8) type modifier that enforces character encodings on encoding and decoding
-?? :align type modifier
+?? :align(32) type modifier
 ?? enums
+
+Qstruct::Compiler
+  * QSTRUCT_ERRNO_* / qstruct_strerror() system
+  * parse_order recorded in parser.rl so that output order of items can be preserved from source file

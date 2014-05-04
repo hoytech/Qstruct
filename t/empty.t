@@ -10,6 +10,8 @@ Qstruct::load_schema(q{
   qstruct S2 {
     empty @0 int16[];
     some @1 uint32[];
+    junk @2 uint64;
+    junk_str @3 string;
   }
 
   qstruct S1 {
@@ -22,6 +24,8 @@ Qstruct::load_schema(q{
     empty4 @6 S2[];
     empty4_explicit @7 S2[];
     some_s2s @8 S2[];
+    an_s2 @9 S2;
+    an_s2_explicit @10 S2;
   }
 });
 
@@ -35,6 +39,7 @@ my $msg1 = S1->encode({
                 { empty => [], some => [1, 2, 3], },
                 { some => [123], },
               ],
+  an_s2_explicit => {},
 });
 
 my $obj1 = S1->decode($msg1);
@@ -50,5 +55,11 @@ is_deeply($obj1->some_s2s->[0]->some, [1,2,3]);
 is_deeply($obj1->some_s2s->[0]->empty, []);
 is_deeply($obj1->some_s2s->[1]->some, [123]);
 is_deeply($obj1->some_s2s->[1]->empty, []);
+is_deeply($obj1->an_s2->empty, []);
+is_deeply($obj1->an_s2->junk, 0);
+is_deeply($obj1->an_s2->junk_str, '');
+is_deeply($obj1->an_s2_explicit->empty, []);
+is_deeply($obj1->an_s2_explicit->junk, 0);
+is_deeply($obj1->an_s2_explicit->junk_str, '');
 
 }
