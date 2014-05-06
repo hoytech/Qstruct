@@ -7,9 +7,9 @@ Qstruct - Design objectives and format specification
 
 =head1 DESCRIPTION OF QSTRUCT
 
-B<Qstruct> is a binary data serialisation format. Unlike L<Storable>, L<Data::MessagePack>, L<Sereal>, L<CBOR::XS> etc, Qstruct requires a schema. This makes it more like L<ASN.1|http://www.itu.int/en/ITU-T/asn1/Pages/introduction.aspx>, L<Thrift::XS>, or L<Google::ProtocolBuffers>.
+B<Qstruct> is a binary data serialisation format. Unlike L<Storable>, L<Data::MessagePack>, L<Sereal>, L<CBOR::XS> etc, qstruct data requires schemas. This makes it more like L<ASN.1|http://www.itu.int/en/ITU-T/asn1/Pages/introduction.aspx>, L<Thrift::XS>, or L<Google::ProtocolBuffers>.
 
-In addition to the above, Qstruct is heavily inspired by L<Cap'n Proto|http://kentonv.github.io/capnproto/>. I am indebted to Kenton Varda for publishing many insights into how this type of serialisation should work. Qstructs originally came about as an attempt to port Cap'n Proto to perl.
+In addition to the above, Qstruct is heavily inspired by L<Simple Binary Encoding|https://github.com/real-logic/simple-binary-encoding/wiki> and L<Cap'n Proto|http://kentonv.github.io/capnproto/>. I am indebted to the SBE designers and Kenton Varda for publishing many insights into how this type of serialisation should work. Qstructs originally came about as an attempt to port Cap'n Proto to perl which explains the similarities in their schema languages.
 
 
 =head1 GOALS
@@ -225,6 +225,8 @@ The size and offset of a dynamic array are stored in the body of a message, mean
 
 Dynamic arrays are stored on the heap. Because in addition to the offset pointer and length, arrays also contain information that encodes how wide each element is, it is possible to evolve a schema by changing a dynamic array of a primitive into a dynamic array of qstructs as long as the first element in the qstruct is the same type as the original primitive.
 
+There is no such thing as a "null pointer" in qstructs so if a dynamic array isn't populated it is implicitly set to be an empty array. The same applies for schema evolution. If you read an old message created before an array was added, the array is read as an empty array.
+
 Arrays can't contain more than C<2**32 - 1> elements and no element can be larger than C<2**32 - 1> bytes large.
 
 
@@ -243,11 +245,34 @@ Fixed arrays are stored inline in the body of the message which avoids 32 bytes 
 
 
 
+=head1 NESTED QSTRUCTS
+
+Once a qstruct type is defined, subsequent qstruct definitions may use them as types, either as scalars or arrays:
+
+    qstruct Account {
+      id @0 uint64;
+      balance @1 double;
+    }
+
+    qstruct User {
+      username @0 string;
+      primary_account @1 Account;
+      sub_accounts @2 Account[];
+    }
+
+Note that there is no way a qstruct name can collide with a primitive type because qstruct names always begin with upper-case letters and primitive types always being with lower-case letters.
+
+Since there is no such thing as a "null pointer" in qstructs, if a nested qstruct isn't populated then its fields are implicitly set to their default values. The same applies for schema evolution: If you read from an old message created before the qstruct was added, default values will be returned. As with all arrays, unpopulated arrays of qstructs are considered to be empty (0-length).
+
+Currently, qstructs must be declared before use and there is no such thing as "forward declarations". We're still thinking of the best way to implement this, but if you need tree-like or mutually-referential qstructs you can embed them in blobs for now.
+
+
+
 =head1 SCHEMA EVOLUTION
 
 Comments and extra whitespace can be added/removed anywhere in the schema.
 
-The qstruct definitions can be shuffled around in any order in the schema.
+The qstruct definitions can be shuffled around in any order in the schema (currently as long as no qstruct depends on a definition that comes after it).
 
 You can add new fields to a qstruct as long as you don't change existing fields' types or C<@> ids and there are no collisions or gaps in the C<@> id numbers. Any messages that were created with the old schema will still be loadable: Accessing new fields in old messages will return default values.
 
