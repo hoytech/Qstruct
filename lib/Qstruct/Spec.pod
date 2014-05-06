@@ -9,7 +9,7 @@ Qstruct - Design objectives and format specification
 
 B<Qstruct> is a binary data serialisation format. Unlike L<Storable>, L<Data::MessagePack>, L<Sereal>, L<CBOR::XS> etc, qstruct data requires schemas. This makes it more like L<ASN.1|http://www.itu.int/en/ITU-T/asn1/Pages/introduction.aspx>, L<Thrift::XS>, or L<Google::ProtocolBuffers>.
 
-In addition to the above, Qstruct is heavily inspired by L<Simple Binary Encoding|https://github.com/real-logic/simple-binary-encoding/wiki> and L<Cap'n Proto|http://kentonv.github.io/capnproto/>. I am indebted to the SBE designers and Kenton Varda for publishing many insights into how this type of serialisation should work. Qstructs originally came about as an attempt to port Cap'n Proto to perl which explains the similarities in their schema languages.
+In addition to the above, Qstruct is inspired by L<Simple Binary Encoding|https://github.com/real-logic/simple-binary-encoding/wiki> and especially L<Cap'n Proto|http://kentonv.github.io/capnproto/>. I am indebted to Kenton Varda for publishing many insights into how this type of serialisation should work. Qstructs originally came about as an attempt to port Cap'n Proto to perl which explains the similarities in their schema languages.
 
 
 =head1 GOALS
@@ -263,6 +263,8 @@ Once a qstruct type is defined, subsequent qstruct definitions may use them as t
 Note that there is no way a qstruct name can collide with a primitive type because qstruct names always begin with upper-case letters and primitive types always being with lower-case letters.
 
 Since there is no such thing as a "null pointer" in qstructs, if a nested qstruct isn't populated then its fields are implicitly set to their default values. The same applies for schema evolution: If you read from an old message created before the qstruct was added, default values will be returned. As with all arrays, unpopulated arrays of qstructs are considered to be empty (0-length).
+
+Nested qstructs are encoded in the same way as blobs: a pointer exists in the body at a fixed offset which references a section of the heap where the data is stored. At the start of this section is a header that is the same format as the root header. For a single nested qstruct, the number of bodies will be 1. However, for an array of qstructs the number of bodies will be 0 or more. The purpose of this design is to not need a full 16-byte header for every element in a qstruct array. If your qtstruct elements are only 1 byte long, then each element will take only 1 byte. Note that due to alignment, sometimes padding (at most 3 bytes) needs to separate elements in the array.
 
 Currently, qstructs must be declared before use and there is no such thing as "forward declarations". We're still thinking of the best way to implement this, but if you need tree-like or mutually-referential qstructs you can embed them in blobs for now.
 
