@@ -35,6 +35,8 @@ my $obj1 = TestSchema1New->decode($msg1);
 is($obj1->qa, 0xAABBCCDD);
 is($obj1->qb, "roflcopter");
 is($obj1->qc, 0x40);
+is($obj1->qd, 0);
+is($obj1->qe, "");
 
 
 my $msg2 = TestSchema1New->encode({
