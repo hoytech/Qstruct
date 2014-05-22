@@ -9,20 +9,22 @@ Qstruct - Design objectives and format specification
 
 B<Qstruct> is a binary data serialisation format. Unlike L<Storable>, L<Data::MessagePack>, L<Sereal>, L<CBOR::XS> etc, qstruct data requires schemas. This makes it more like L<ASN.1|http://www.itu.int/en/ITU-T/asn1/Pages/introduction.aspx>, L<Thrift::XS>, or L<Google::ProtocolBuffers>.
 
-In addition to the above, Qstruct is inspired by L<Simple Binary Encoding|https://github.com/real-logic/simple-binary-encoding/wiki> and especially L<Cap'n Proto|http://kentonv.github.io/capnproto/>. I am indebted to Kenton Varda for publishing many insights into how this type of serialisation should work. Qstructs originally came about as an attempt to port Cap'n Proto to perl which explains the similarities in their schema languages.
+In addition to the above, Qstruct is similar to L<Simple Binary Encoding|https://github.com/real-logic/simple-binary-encoding/wiki> and L<Blink Protocol|http://www.blinkprotocol.org/>'s "native binary format".
+
+Qstruct is most similar to L<Cap'n Proto|http://kentonv.github.io/capnproto/>. I am indebted to Kenton Varda for publishing many insights related to this type of serialisation. Qstructs originally came about as an attempt to port Cap'n Proto to perl which explains the similarities in their schema languages.
 
 
 =head1 GOALS
 
 The goal of Qstruct is to provide as close as possible performance to C C<struct>s -- even ones containing pointers -- while also being portable, extensible, and safe.
 
-With qstructs, the "in-memory" representation is the same as the "wire" representation. Because it's redundant to distinguish between these two formats, this documentation will only refer to B<the Qstruct format> which covers both in-memory and wire representations.
+With Qstructs, the "in-memory" representation is the same as the "wire" representation. Because it's redundant to distinguish between these two formats, this documentation will only refer to B<the Qstruct format> which covers both in-memory and wire representations.
 
-C<Portable>: All integers and floating point numbers are stored in little-endian byte order and aren't necessarily stored at aligned offsets. Despite these restrictions, Qstructs can be used on any CPU, even ones that are big-endian or have strict alignment requirements.
+C<Portable>: All integers and floating point numbers are stored in little-endian byte order and aren't necessarily stored at aligned offsets. Despite these restrictions, Qstructs can be used on any CPU, even ones that are big-endian and/or have strict alignment requirements.
 
 C<Extensible>: New fields can be added to qstruct schemas as needed without invalidating already created messages. Existing fields can be renamed or re-ordered so long as the types or C<@> ids aren't changed.
 
-C<Safe>: Accessing data from untrusted sources should never cause the program to read or write out of bounds (causing a segfault or worse). The Qstruct format is designed to be simple in order to help with the verifying and testing of this. There is a canonicalisation specification being developed so canonicalised Qstructs will be cache-friendly and suitable for digital signing.
+C<Safe>: Accessing data from untrusted sources should never cause the program to read or write out of bounds (causing a segfault or worse). The Qstruct format is designed to be simple in order to help with the verifying and testing of this. There is a canonicalisation specification being developed so canonicalised Qstructs will be cache and diff-friendly and suitable for digital signing.
 
 C<Efficient>: Because there is no difference between in-memory versus wire formats, there is no encoding/decoding needed. Even for extremely large messages, loading is instantaneous (it just does some basic sanity checking of the message size and header information). If you only access a few fields of a message you don't pay any deserialisation costs for the fields you didn't access. In other words, you only pay for what you use because messages accessors are B<lazy>. Furthermore, all operations are inherently B<zero-copy>: The values you extract will always be pointers into the message data. The only copying that occurs is what you copy out manually (see below).
 
@@ -116,7 +118,7 @@ A message is a block of data representing a Qstruct. It is either in the process
 
 The message data should be considered a binary blob. It may contain NUL bytes so its length must be stored separately (ie, you can't count on a terminating NUL).
 
-Messages can in theory be any size representable by an unsigned 64 bit number. However, on 32-bit machines some messages are too large to access and attempting to build, load, or access these messages will throw exceptions. There are other size constraints as well: Arrays can't contain more than C<2**32 - 1> elements, and qstruct bodies can't be more than C<2**32 - 1> bytes large.
+Messages can in theory be any size representable by an unsigned 64 bit number. However, on 32-bit machines some messages are too large to access and attempting to build, load, or access these messages will throw exceptions (not that you'd be able to load such messages into memory anyway). There are other size constraints as well: Arrays can't contain more than C<2**32 - 1> elements, and qstruct bodies can't be more than C<2**32 - 1> bytes large.
 
 Messages are not self-delimiting so when transmitting or storing they need to be framed in some fashion. For example, when sending across a socket you might choose to send an 8-byte little-endian integer before the message data to indicate the size of the message that follows. When you apply framing be aware that it may impact data alignment at the receiving end which is OK except that misaligned messages may degrade performance on some machines (not modern x86-64 processors).
 
@@ -219,9 +221,9 @@ Examples:
     profile_pictures @1 blob[];
     comments @2 MyApp::Comment[];
 
-Dynamic arrays are the most flexible type of arrays since they can contain 0 or more elements, up to available memory and address space limitations.
+Dynamic arrays are the most flexible type of arrays since they can contain from C<0> to C<2**32 - 1> elements or at least up to available memory and address space limitations.
 
-The size and offset of a dynamic array are stored in the body of a message, meaning dynamic arrays consume at least 16 bytes even when empty. Additionally, accessing them requires an indirection through the offset pointer.
+The size and offset of a dynamic array are stored in the body of a message, meaning dynamic arrays consume 16 bytes even when empty. Additionally, accessing them requires an indirection through the offset pointer.
 
 Dynamic arrays are stored on the heap. Because in addition to the offset pointer and length, arrays also contain information that encodes how wide each element is, it is possible to evolve a schema by changing a dynamic array of a primitive into a dynamic array of qstructs as long as the first element in the qstruct is the same type as the original primitive.
 
@@ -284,7 +286,7 @@ You can re-arrange the fields in a qstruct: only the types and C<@> ids influenc
 
 You can change a dynamic array of a primitive type into a dynamic array of a qstruct providing that the qstruct has an element of the primitive type as its C<@0> id.
 
-You can change the signedness of integer types as long as you are OK with effectively re-casting the data (negative ints become large positive ints/large positive ints become negative ints).
+You can change the signedness of integer types as long as you are OK with effectively re-casting the data (negative ints become large positive ints and large positive ints become negative ints).
 
 You can change a blob to a string (though this impacts canonicalisation) but you can't change a string to a blob (due to alignment).
 
@@ -314,10 +316,10 @@ There is a lot to think about for this so don't rely on this feature for securit
 
     * Null out all free and unallocated space
     * Make sure 0-length strings/blobs/arrays always point to NULL
-    * All pointers (other than NULL pointers) must point forward and be
-      strictly increasing when traversed in a designated order
+    * Make sure that all pointers point forwards and are strictly
+      increasing when traversed in a designated order
     * Make sure tagged-size optimisation is always applied when possible
-    * Null out high bytes and high nibble in tagged-sizes
+    * Zero-out high bytes and high nibble in tagged-sizes
     * Fields and arrays of fields must always be at correct alignment
     * Normalise floating point NaN representations (qNaN/sNan)
     * Ensure body is the right size for the current schema version
