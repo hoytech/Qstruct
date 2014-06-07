@@ -535,6 +535,8 @@ Because the perl module uses the slow and portable accessors, no matter what CPU
 
 L<Qstruct::Spec> - The Qstruct design objectives and format specification
 
+L<Video: Doug Hoyte introduces Qstruct to Toronto Perl Mongers|https://www.youtube.com/watch?v=cOYx8te1-m0>
+
 L<Qstruct::Compiler> - The reference compiler implementation
 
 L<Test::ZeroCopy> - More information on zero-copy and how it is tested for
