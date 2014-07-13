@@ -101,6 +101,7 @@ get_item(def_addr, item_index)
         hv_store(rh, "byte_offset", 11, newSVnv(item->byte_offset), 0);
         hv_store(rh, "bit_offset", 10, newSVnv(item->bit_offset), 0);
         hv_store(rh, "nested_type", 11, newSVpvn(item->nested_name, item->nested_name_len), 0);
+        hv_store(rh, "order", 5, newSVnv(item->item_order), 0);
 
         RETVAL = newRV((SV *)rh);
     OUTPUT:
