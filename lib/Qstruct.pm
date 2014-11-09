@@ -562,10 +562,11 @@ The bundled C<libqstruct> is (C) Doug Hoyte and licensed under the 2-clause BSD 
 
 
 
-TODO pre-cpan:
+TODO:
 
 !! make sure pointers always point forwards
 !! make sure no identifiers have adjacent _s in their names
+!! enums
 
 tests:
   * nested qstructs
@@ -588,8 +589,9 @@ fewer copies in encode method after final malloc
   ?? maybe it can steal the malloc buffer and be zerocopy
 ?? :encoding(utf8) type modifier that enforces character encodings on encoding and decoding
 ?? :align(32) type modifier
-?? enums
 
 Qstruct::Compiler
   * QSTRUCT_ERRNO_* / qstruct_strerror() system
-  * parse_order recorded in parser.rl so that output order of items can be preserved from source file
+
+doug@neptune:~/Qstruct$ perl -MQstruct -E 'Qstruct::load_schema(q{           })'
+Qstruct::parse error: ����I� at /usr/local/lib/perl/5.14.2/Qstruct.pm line 297.
